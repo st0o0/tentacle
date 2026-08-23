@@ -1,0 +1,34 @@
+schema: spec-driven
+
+context: |
+  Project: tentacle — a Prometheus exporter for Jellyfin media servers
+  Binary: tentacle (module github.com/st0o0/tentacle)
+  Language: Go 1.26+, stdlib only (no frameworks)
+  Build: CGO_ENABLED=0, multi-stage Docker (scratch), ldflags version injection
+  Config: environment variables with TENTACLE_ prefix, loaded via getenv function for testability
+  Metrics: prometheus/client_golang, custom registry, exposed on :9594/metrics
+  Logging: log/slog, JSON (default) or text format
+  Linting: golangci-lint v2
+  Container: ghcr.io, scratch base, built-in healthcheck
+  Domain: Jellyfin API client that scrapes server data and exposes it as Prometheus metrics
+  Architecture: cmd/tentacle (entrypoint) + internal/ (config, collector, jellyfin, metrics)
+  Collectors: system, users, sessions, library, tasks, activity, plugins, devices, counts, playback
+  Conventions:
+    - Single-line git commit messages, no body, no Co-Authored-By
+    - No comments unless the WHY is non-obvious
+    - Env vars: TENTACLE_ prefix, parsed with typed helpers (require, str, duration, logLevel, logFormat)
+    - Errors wrapped with fmt.Errorf and %w
+    - Context propagation via context.Context on all API calls
+    - Graceful shutdown via signal.NotifyContext (SIGTERM, SIGINT)
+
+rules:
+  proposal:
+    - Keep proposals concise, under 500 words
+    - Always include a "Non-goals" section
+  tasks:
+    - Break tasks into chunks of max 2 hours
+    - Each task must be independently testable
+  specs:
+    - Use WHEN/THEN scenario format for all requirements
+    - One spec per capability (config, client, each collector, metrics-server)
+    - Prefix metric names with tentacle_
