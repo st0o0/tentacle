@@ -59,17 +59,28 @@ Metrics at `:9594/metrics`. Health check at `:9594/healthz`.
                     │           tentacle              │
                     │                                 │
  Jellyfin API ─────▶│  jellyfin collectors (10)       │
- Sonarr API ───────▶│  sonarr collectors (5)          │
- Radarr API ───────▶│  radarr collectors (5)          │──▶ :9594/metrics ──▶ Prometheus
- Prowlarr API ─────▶│  prowlarr collectors (2)        │
+ Sonarr API ───────▶│  sonarr collectors (6)          │
+ Radarr API ───────▶│  radarr collectors (6)          │──▶ :9594/metrics ──▶ Prometheus
+ Prowlarr API ─────▶│  prowlarr collectors (3)        │
  Audiobookshelf ───▶│  audiobookshelf collectors (5)  │
- Seerr API ────────▶│  seerr collectors (3)           │
+ Seerr API ────────▶│  seerr collectors (4)           │
                     └─────────────────────────────────┘
 ```
 
 Each collector calls its service's REST API on every Prometheus scrape, converts
 the response into gauges, and reports scrape duration and success. No state is
 kept between scrapes. All services are read-only.
+
+## Getting API tokens
+
+| Service | How to get the token |
+|---|---|
+| **Jellyfin** | Dashboard → API Keys → create a new key |
+| **Sonarr** | Settings → General → API Key |
+| **Radarr** | Settings → General → API Key |
+| **Prowlarr** | Settings → General → API Key |
+| **Audiobookshelf** | Settings → Users → select user → copy API token |
+| **Seerr** | Settings → General → API Key |
 
 ## Supported services
 
@@ -99,21 +110,22 @@ tasks, activity, counts, and system health. Metrics use the `jellyfin_` prefix.
 | `jellyfin_sessions_bandwidth_total_bps` | gauge | | Total bandwidth |
 | `jellyfin_sessions_direct_play_total` | gauge | | Direct play count |
 | `jellyfin_sessions_transcode_total` | gauge | | Transcode count |
-| `jellyfin_library_items_total` | gauge | `type`, `library` | Item count per library and type |
-| `jellyfin_library_size_bytes` | gauge | `library` | Total library size |
-| `jellyfin_library_latest_added_timestamp_seconds` | gauge | `library` | Most recently added item |
+| `jellyfin_library_items_total` | gauge | `type`, `library`, `collection_type` | Item count per library and type |
+| `jellyfin_library_size_bytes` | gauge | `library`, `collection_type` | Total library size |
+| `jellyfin_library_latest_added_timestamp_seconds` | gauge | `library`, `collection_type` | Most recently added item |
 | `jellyfin_scheduled_task_state` | gauge | `task_name`, `category` | Task state (0=Idle, 1=Running, 2=Cancelling) |
 | `jellyfin_scheduled_task_progress_ratio` | gauge | `task_name` | Current progress (0-1) |
 | `jellyfin_scheduled_task_last_run_duration_seconds` | gauge | `task_name` | Last run duration |
 | `jellyfin_scheduled_task_last_run_success` | gauge | `task_name` | Whether last run succeeded |
 | `jellyfin_scheduled_task_last_run_timestamp_seconds` | gauge | `task_name` | Last completion time |
 | `jellyfin_activity_log_entries_total` | gauge | `severity` | Entry count by severity |
+| `jellyfin_activity_log_entries_by_type_total` | gauge | `type` | Entry count by type |
 | `jellyfin_activity_log_latest_timestamp_seconds` | gauge | | Most recent entry |
 | `jellyfin_plugins_total` | gauge | | Installed plugin count |
 | `jellyfin_plugin_info` | gauge | `name`, `version`, `status` | Plugin details |
 | `jellyfin_plugin_update_available` | gauge | `name` | Whether update available |
 | `jellyfin_devices_total` | gauge | | Registered device count |
-| `jellyfin_device_last_activity_timestamp_seconds` | gauge | `device_name`, `app_name`, `user` | Last device activity |
+| `jellyfin_device_last_activity_timestamp_seconds` | gauge | `device_name`, `app_name`, `app_version`, `user` | Last device activity |
 | `jellyfin_items_total` | gauge | `type` | Global item count (Movie, Series, Episode, Audio, ...) |
 | `jellyfin_playback_play_count` | gauge | `user` | Play count per user (last 30 days) |
 | `jellyfin_playback_watch_time_seconds` | gauge | `user` | Watch time per user (last 30 days) |
@@ -123,67 +135,94 @@ tasks, activity, counts, and system health. Metrics use the `jellyfin_` prefix.
 
 ### Sonarr
 
-5 collectors covering system health, series/episodes, download queue, disk usage, and calendar. Metrics use the `sonarr_` prefix.
+6 collectors covering system health, series/episodes, download queue, disk usage,
+calendar, and extras (backups, updates, blocklist). Metrics use the `sonarr_` prefix.
 
 | Metric | Type | Labels | Description |
 |---|---|---|---|
 | `sonarr_up` | gauge | | Whether Sonarr is reachable |
 | `sonarr_system_info` | gauge | `version`, `branch`, `runtime` | Server information |
+| `sonarr_system_start_time_seconds` | gauge | | Server start timestamp |
 | `sonarr_health_issues_total` | gauge | `type`, `source` | Health check issues |
 | `sonarr_series_total` | gauge | | Total series count |
 | `sonarr_series_monitored_total` | gauge | | Monitored series count |
+| `sonarr_series_by_status_total` | gauge | `status` | Series by status |
+| `sonarr_seasons_total` | gauge | | Total season count |
 | `sonarr_episodes_total` | gauge | | Total episode count |
 | `sonarr_episodes_downloaded_total` | gauge | | Downloaded episodes |
 | `sonarr_episodes_missing_total` | gauge | | Missing monitored episodes |
 | `sonarr_series_size_bytes` | gauge | | Total library size |
 | `sonarr_queue_total` | gauge | | Download queue items |
+| `sonarr_queue_by_state_total` | gauge | `state` | Queue items by state |
 | `sonarr_disk_total_bytes` | gauge | `path` | Total disk space |
 | `sonarr_disk_free_bytes` | gauge | `path` | Free disk space |
 | `sonarr_calendar_upcoming_total` | gauge | | Episodes airing in next 7 days |
+| `sonarr_backup_total` | gauge | | Total backup count |
+| `sonarr_backup_latest_timestamp_seconds` | gauge | | Most recent backup |
+| `sonarr_update_available` | gauge | `version` | Whether an update is available |
+| `sonarr_blocklist_total` | gauge | | Blocked releases count |
+| `sonarr_download_client_info` | gauge | `name`, `protocol`, `priority` | Download client details |
 
 ### Radarr
 
-5 collectors covering system health, movies, download queue, disk usage, and calendar. Metrics use the `radarr_` prefix.
+6 collectors covering system health, movies, download queue, disk usage,
+calendar, and extras (backups, updates, blocklist). Metrics use the `radarr_` prefix.
 
 | Metric | Type | Labels | Description |
 |---|---|---|---|
 | `radarr_up` | gauge | | Whether Radarr is reachable |
 | `radarr_system_info` | gauge | `version`, `branch`, `runtime` | Server information |
+| `radarr_system_start_time_seconds` | gauge | | Server start timestamp |
 | `radarr_health_issues_total` | gauge | `type`, `source` | Health check issues |
 | `radarr_movies_total` | gauge | | Total movie count |
 | `radarr_movies_monitored_total` | gauge | | Monitored movies |
+| `radarr_movies_by_status_total` | gauge | `status` | Movies by status |
 | `radarr_movies_downloaded_total` | gauge | | Movies with files |
 | `radarr_movies_missing_total` | gauge | | Missing monitored movies |
 | `radarr_movies_size_bytes` | gauge | | Total library size |
 | `radarr_queue_total` | gauge | | Download queue items |
+| `radarr_queue_by_state_total` | gauge | `state` | Queue items by state |
 | `radarr_disk_total_bytes` | gauge | `path` | Total disk space |
 | `radarr_disk_free_bytes` | gauge | `path` | Free disk space |
 | `radarr_calendar_upcoming_total` | gauge | | Movies releasing in next 30 days |
+| `radarr_backup_total` | gauge | | Total backup count |
+| `radarr_backup_latest_timestamp_seconds` | gauge | | Most recent backup |
+| `radarr_update_available` | gauge | `version` | Whether an update is available |
+| `radarr_blocklist_total` | gauge | | Blocked releases count |
+| `radarr_download_client_info` | gauge | `name`, `protocol`, `priority` | Download client details |
 
 ### Prowlarr
 
-2 collectors covering system health and indexer statistics. Metrics use the `prowlarr_` prefix.
+3 collectors covering system health, indexer statistics, and connected apps.
+Metrics use the `prowlarr_` prefix.
 
 | Metric | Type | Labels | Description |
 |---|---|---|---|
 | `prowlarr_up` | gauge | | Whether Prowlarr is reachable |
 | `prowlarr_system_info` | gauge | `version`, `branch`, `runtime` | Server information |
+| `prowlarr_system_start_time_seconds` | gauge | | Server start timestamp |
 | `prowlarr_health_issues_total` | gauge | `type`, `source` | Health check issues |
 | `prowlarr_indexers_total` | gauge | | Total indexer count |
 | `prowlarr_indexers_enabled_total` | gauge | | Enabled indexers |
+| `prowlarr_indexers_by_protocol_total` | gauge | `protocol` | Indexers by protocol |
 | `prowlarr_indexer_queries_total` | gauge | `indexer` | Queries per indexer |
 | `prowlarr_indexer_grabs_total` | gauge | `indexer` | Grabs per indexer |
 | `prowlarr_indexer_failed_queries_total` | gauge | `indexer` | Failed queries |
 | `prowlarr_indexer_failed_grabs_total` | gauge | `indexer` | Failed grabs |
 | `prowlarr_indexer_avg_response_seconds` | gauge | `indexer` | Average response time |
+| `prowlarr_apps_total` | gauge | | Connected application count |
+| `prowlarr_app_info` | gauge | `name`, `sync_level`, `implementation` | Application details |
+| `prowlarr_indexer_disabled` | gauge | `indexer` | Whether temporarily disabled |
 
 ### Audiobookshelf
 
-5 collectors covering system health, libraries, users, sessions, and backups. Metrics use the `audiobookshelf_` prefix.
+5 collectors covering system health, libraries, users, sessions, and backups.
+Metrics use the `audiobookshelf_` prefix.
 
 | Metric | Type | Labels | Description |
 |---|---|---|---|
 | `audiobookshelf_up` | gauge | | Whether Audiobookshelf is reachable |
+| `audiobookshelf_system_info` | gauge | `version` | Server information |
 | `audiobookshelf_libraries_total` | gauge | | Total library count |
 | `audiobookshelf_library_items_total` | gauge | `library`, `media_type` | Items per library |
 | `audiobookshelf_library_size_bytes` | gauge | `library`, `media_type` | Library size |
@@ -193,16 +232,20 @@ tasks, activity, counts, and system health. Metrics use the `jellyfin_` prefix.
 | `audiobookshelf_library_genres_total` | gauge | `library`, `media_type` | Genre count |
 | `audiobookshelf_library_missing_total` | gauge | `library`, `media_type` | Items with missing files |
 | `audiobookshelf_library_invalid_total` | gauge | `library`, `media_type` | Invalid items |
+| `audiobookshelf_library_last_update_timestamp_seconds` | gauge | `library`, `media_type` | Last library update |
 | `audiobookshelf_users_total` | gauge | | Total user count |
+| `audiobookshelf_users_active_total` | gauge | | Active user count |
 | `audiobookshelf_users_online` | gauge | | Online user count |
 | `audiobookshelf_user_last_seen_timestamp_seconds` | gauge | `user`, `type` | Last seen time |
+| `audiobookshelf_user_listening_time_seconds` | gauge | `user` | Total listening time |
 | `audiobookshelf_sessions_total` | gauge | | Total listening sessions |
 | `audiobookshelf_backups_total` | gauge | | Total backup count |
 | `audiobookshelf_backup_latest_timestamp_seconds` | gauge | | Most recent backup time |
 
 ### Seerr
 
-3 collectors covering system health, media requests, and users. Metrics use the `seerr_` prefix. Works with both Jellyseerr and Overseerr.
+4 collectors covering system health, media requests, users, and issues.
+Metrics use the `seerr_` prefix. Works with both Jellyseerr and Overseerr.
 
 | Metric | Type | Labels | Description |
 |---|---|---|---|
@@ -210,8 +253,10 @@ tasks, activity, counts, and system health. Metrics use the `jellyfin_` prefix.
 | `seerr_system_info` | gauge | `version`, `commit` | Server information |
 | `seerr_requests_total` | gauge | | Total request count |
 | `seerr_requests_by_type_total` | gauge | `media_type` | Requests by type (movie, tv) |
-| `seerr_requests_by_status_total` | gauge | `status` | Requests by status (pending, approved, available, declined) |
+| `seerr_requests_by_status_total` | gauge | `status` | Requests by status |
 | `seerr_users_total` | gauge | | Total user count |
+| `seerr_issues_total` | gauge | | Total reported issues |
+| `seerr_issues_by_status_total` | gauge | `status` | Issues by status |
 
 All collectors also emit `<namespace>_scrape_duration_seconds{collector}` and
 `<namespace>_scrape_success{collector}`.
@@ -239,6 +284,18 @@ All collectors also emit `<namespace>_scrape_duration_seconds{collector}` and
 
 A service is enabled when both its `_ADDRESS` and `_TOKEN` are set. At least one
 service must be configured.
+
+## CLI
+
+```
+tentacle              # start the exporter
+tentacle version      # print the version and exit
+tentacle healthcheck  # check if the server is healthy (exit 0/1)
+```
+
+The `healthcheck` subcommand reads `TENTACLE_LISTEN_ADDRESS` to determine the
+port, so it works correctly with custom listen addresses. An explicit address can
+be passed as an argument: `tentacle healthcheck :8080`.
 
 ## Prometheus scrape config
 
