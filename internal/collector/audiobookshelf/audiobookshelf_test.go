@@ -25,7 +25,7 @@ func TestSystemCollector_Up(t *testing.T) {
 	})
 	mux.HandleFunc("/api/backups", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(`{"backups":[{"id":"b1","createdAt":1700000000000,"serverVersion":"2.17.0"}]}`))
+		_, _ = w.Write([]byte(`{"backups":[{"id":"b1","createdAt":1700000000000,"serverVersion":"2.17.0"}]}`))
 	})
 	srv := httptest.NewServer(mux)
 	defer srv.Close()
@@ -64,15 +64,15 @@ func TestLibrariesCollector(t *testing.T) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/libraries", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(`{"libraries":[{"id":"lib1","name":"Audiobooks","mediaType":"book","lastUpdate":1700000000000},{"id":"lib2","name":"Podcasts","mediaType":"podcast","lastUpdate":1700500000000}]}`))
+		_, _ = w.Write([]byte(`{"libraries":[{"id":"lib1","name":"Audiobooks","mediaType":"book","lastUpdate":1700000000000},{"id":"lib2","name":"Podcasts","mediaType":"podcast","lastUpdate":1700500000000}]}`))
 	})
 	mux.HandleFunc("/api/libraries/lib1/stats", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(`{"totalItems":42,"totalSize":1073741824,"totalDuration":360000.5,"numAudioTracks":100,"totalAuthors":15,"totalGenres":8,"numMissing":2,"numInvalid":1}`))
+		_, _ = w.Write([]byte(`{"totalItems":42,"totalSize":1073741824,"totalDuration":360000.5,"numAudioTracks":100,"totalAuthors":15,"totalGenres":8,"numMissing":2,"numInvalid":1}`))
 	})
 	mux.HandleFunc("/api/libraries/lib2/stats", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(`{"totalItems":10,"totalSize":524288000,"totalDuration":7200.0,"numAudioTracks":20,"totalAuthors":5,"totalGenres":3,"numMissing":0,"numInvalid":0}`))
+		_, _ = w.Write([]byte(`{"totalItems":10,"totalSize":524288000,"totalDuration":7200.0,"numAudioTracks":20,"totalAuthors":5,"totalGenres":3,"numMissing":0,"numInvalid":0}`))
 	})
 
 	srv := httptest.NewServer(mux)
@@ -109,19 +109,19 @@ func TestUsersCollector(t *testing.T) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/users", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(`[{"id":"u1","username":"alice","type":"admin","isActive":true,"lastSeen":1700000000000,"createdAt":1690000000000},{"id":"u2","username":"bob","type":"user","isActive":false,"lastSeen":1700500000000,"createdAt":1690000000000}]`))
+		_, _ = w.Write([]byte(`[{"id":"u1","username":"alice","type":"admin","isActive":true,"lastSeen":1700000000000,"createdAt":1690000000000},{"id":"u2","username":"bob","type":"user","isActive":false,"lastSeen":1700500000000,"createdAt":1690000000000}]`))
 	})
 	mux.HandleFunc("/api/users/u1/listening-stats", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(`{"totalTime":86400}`))
+		_, _ = w.Write([]byte(`{"totalTime":86400}`))
 	})
 	mux.HandleFunc("/api/users/u2/listening-stats", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(`{"totalTime":3600}`))
+		_, _ = w.Write([]byte(`{"totalTime":3600}`))
 	})
 	mux.HandleFunc("/api/users/online", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(`{"openSessions":[],"usersOnline":[{"id":"u1","username":"alice"}]}`))
+		_, _ = w.Write([]byte(`{"openSessions":[],"usersOnline":[{"id":"u1","username":"alice"}]}`))
 	})
 
 	srv := httptest.NewServer(mux)
@@ -160,7 +160,7 @@ func TestSessionsCollector(t *testing.T) {
 			t.Errorf("unexpected path: %s", r.URL.Path)
 		}
 		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(`{"total":57,"numPages":3,"page":0,"itemsPerPage":20,"sessions":[]}`))
+		_, _ = w.Write([]byte(`{"total":57,"numPages":3,"page":0,"itemsPerPage":20,"sessions":[]}`))
 	}))
 	defer srv.Close()
 
@@ -191,7 +191,7 @@ func TestBackupsCollector(t *testing.T) {
 			t.Errorf("unexpected path: %s", r.URL.Path)
 		}
 		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(`{"backups":[{"id":"b1","path":"/backups/b1.tar","datePretty":"2023-11-14","createdAt":1700000000000,"serverVersion":"2.7.0"},{"id":"b2","path":"/backups/b2.tar","datePretty":"2023-11-15","createdAt":1700100000000,"serverVersion":"2.7.0"},{"id":"b3","path":"/backups/b3.tar","datePretty":"2023-11-13","createdAt":1699900000000,"serverVersion":"2.7.0"}]}`))
+		_, _ = w.Write([]byte(`{"backups":[{"id":"b1","path":"/backups/b1.tar","datePretty":"2023-11-14","createdAt":1700000000000,"serverVersion":"2.7.0"},{"id":"b2","path":"/backups/b2.tar","datePretty":"2023-11-15","createdAt":1700100000000,"serverVersion":"2.7.0"},{"id":"b3","path":"/backups/b3.tar","datePretty":"2023-11-13","createdAt":1699900000000,"serverVersion":"2.7.0"}]}`))
 	}))
 	defer srv.Close()
 
@@ -207,7 +207,7 @@ func TestBackupsCollector(t *testing.T) {
 func TestBackupsCollector_Empty(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(`{"backups":[]}`))
+		_, _ = w.Write([]byte(`{"backups":[]}`))
 	}))
 	defer srv.Close()
 
@@ -243,7 +243,7 @@ func TestBearerTokenAuth(t *testing.T) {
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(`{"total":0,"numPages":0,"page":0,"itemsPerPage":20,"sessions":[]}`))
+		_, _ = w.Write([]byte(`{"total":0,"numPages":0,"page":0,"itemsPerPage":20,"sessions":[]}`))
 	}))
 	defer srv.Close()
 

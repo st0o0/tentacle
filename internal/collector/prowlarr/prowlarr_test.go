@@ -22,7 +22,7 @@ func TestSystemCollector_Success(t *testing.T) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/v3/system/status", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(`{
+		_, _ = w.Write([]byte(`{
 			"version": "1.12.0",
 			"branch": "main",
 			"runtimeName": ".NET",
@@ -32,7 +32,7 @@ func TestSystemCollector_Success(t *testing.T) {
 	})
 	mux.HandleFunc("/api/v3/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(`[
+		_, _ = w.Write([]byte(`[
 			{"source": "IndexerRssCheck", "type": "warning", "message": "msg1", "wikiUrl": ""},
 			{"source": "IndexerRssCheck", "type": "warning", "message": "msg2", "wikiUrl": ""},
 			{"source": "UpdateCheck", "type": "error", "message": "update", "wikiUrl": ""}
@@ -95,7 +95,7 @@ func TestSystemCollector_APIFailure(t *testing.T) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/v3/system/status", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte("error"))
+		_, _ = w.Write([]byte("error"))
 	})
 
 	srv, client := newTestServer(mux)
@@ -127,7 +127,7 @@ func TestIndexersCollector_Success(t *testing.T) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/v3/indexer", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(`[
+		_, _ = w.Write([]byte(`[
 			{"name": "NZBgeek", "enable": true, "protocol": "usenet", "priority": 1},
 			{"name": "Torznab", "enable": true, "protocol": "torrent", "priority": 2},
 			{"name": "Disabled", "enable": false, "protocol": "torrent", "priority": 3}
@@ -135,7 +135,7 @@ func TestIndexersCollector_Success(t *testing.T) {
 	})
 	mux.HandleFunc("/api/v3/indexerstats", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(`{
+		_, _ = w.Write([]byte(`{
 			"indexers": [
 				{
 					"indexerName": "NZBgeek",
@@ -280,7 +280,7 @@ func TestIndexersCollector_StatsFailure(t *testing.T) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/v3/indexer", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(`[{"name": "Test", "enable": true, "protocol": "usenet", "priority": 1}]`))
+		_, _ = w.Write([]byte(`[{"name": "Test", "enable": true, "protocol": "usenet", "priority": 1}]`))
 	})
 	mux.HandleFunc("/api/v3/indexerstats", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
@@ -315,21 +315,21 @@ func TestAppsCollector_Success(t *testing.T) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/v3/applications", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(`[
+		_, _ = w.Write([]byte(`[
 			{"name": "Sonarr", "syncLevel": "fullSync", "implementation": "Sonarr"},
 			{"name": "Radarr", "syncLevel": "fullSync", "implementation": "Radarr"}
 		]`))
 	})
 	mux.HandleFunc("/api/v3/indexer", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(`[
+		_, _ = w.Write([]byte(`[
 			{"id": 1, "name": "NZBgeek", "enable": true, "protocol": "usenet", "priority": 1},
 			{"id": 2, "name": "Torznab", "enable": true, "protocol": "torrent", "priority": 2}
 		]`))
 	})
 	mux.HandleFunc("/api/v3/indexerstatus", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(`[{"indexerId": 1, "disabledTill": "2099-01-01T00:00:00Z"}]`))
+		_, _ = w.Write([]byte(`[{"indexerId": 1, "disabledTill": "2099-01-01T00:00:00Z"}]`))
 	})
 
 	srv, client := newTestServer(mux)
@@ -372,11 +372,11 @@ func TestSystemCollector_APIKeyHeader(t *testing.T) {
 	mux.HandleFunc("/api/v3/system/status", func(w http.ResponseWriter, r *http.Request) {
 		gotKey = r.Header.Get("X-Api-Key")
 		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(`{"version":"1.0","branch":"main","runtimeName":"test","runtimeVersion":""}`))
+		_, _ = w.Write([]byte(`{"version":"1.0","branch":"main","runtimeName":"test","runtimeVersion":""}`))
 	})
 	mux.HandleFunc("/api/v3/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(`[]`))
+		_, _ = w.Write([]byte(`[]`))
 	})
 
 	srv, client := newTestServer(mux)

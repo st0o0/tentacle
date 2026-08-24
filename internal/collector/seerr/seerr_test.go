@@ -33,7 +33,7 @@ func newTestServer(t *testing.T) *httptest.Server {
 			http.Error(w, "unauthorized", http.StatusUnauthorized)
 			return
 		}
-		json.NewEncoder(w).Encode(seerr.RequestCount{
+		_ = json.NewEncoder(w).Encode(seerr.RequestCount{
 			Total:     42,
 			Movie:     25,
 			TV:        17,
@@ -49,7 +49,7 @@ func newTestServer(t *testing.T) *httptest.Server {
 			http.Error(w, "unauthorized", http.StatusUnauthorized)
 			return
 		}
-		json.NewEncoder(w).Encode(seerr.IssueCount{
+		_ = json.NewEncoder(w).Encode(seerr.IssueCount{
 			Total:    10,
 			Open:     3,
 			Resolved: 7,
@@ -61,7 +61,7 @@ func newTestServer(t *testing.T) *httptest.Server {
 			http.Error(w, "unauthorized", http.StatusUnauthorized)
 			return
 		}
-		json.NewEncoder(w).Encode(seerr.UsersResponse{
+		_ = json.NewEncoder(w).Encode(seerr.UsersResponse{
 			PageInfo: seerr.PageInfo{
 				Pages:   1,
 				Results: 15,
