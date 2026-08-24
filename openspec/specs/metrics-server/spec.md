@@ -55,12 +55,16 @@ The server SHALL shut down gracefully on SIGTERM or SIGINT with a 5-second shutd
 - **THEN** the HTTP server stops accepting new connections and existing requests complete within 5 seconds
 
 ### Requirement: Scrape instrumentation
-Every collector SHALL emit `jellyfin_scrape_duration_seconds{collector}` and `jellyfin_scrape_success{collector}` on each scrape.
+Every collector SHALL emit `<namespace>_scrape_duration_seconds{collector}` and `<namespace>_scrape_success{collector}` on each scrape, where `<namespace>` matches the service namespace (e.g., `jellyfin`, `sonarr`, `audiobookshelf`).
 
-#### Scenario: Successful scrape
-- **WHEN** a collector scrape succeeds
-- **THEN** `jellyfin_scrape_success{collector="<name>"}` is 1 and `jellyfin_scrape_duration_seconds{collector="<name>"}` reflects the actual duration
+#### Scenario: Jellyfin collector scrape metrics
+- **WHEN** the system collector for Jellyfin completes a scrape
+- **THEN** `jellyfin_scrape_success{collector="system"}` and `jellyfin_scrape_duration_seconds{collector="system"}` are emitted
 
-#### Scenario: Failed scrape
-- **WHEN** a collector scrape fails (API error)
-- **THEN** `jellyfin_scrape_success{collector="<name>"}` is 0
+#### Scenario: Sonarr collector scrape metrics
+- **WHEN** the system collector for Sonarr completes a scrape
+- **THEN** `sonarr_scrape_success{collector="system"}` and `sonarr_scrape_duration_seconds{collector="system"}` are emitted
+
+#### Scenario: One service failure does not affect others
+- **WHEN** the Sonarr API is unreachable but Jellyfin responds normally
+- **THEN** Sonarr collectors emit `scrape_success=0` while Jellyfin collectors emit their metrics normally

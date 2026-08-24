@@ -1,8 +1,4 @@
-## Purpose
-
-Prometheus collector exposing global Jellyfin item counts by media type via the `/Items/Counts` API endpoint.
-
-## Requirements
+## MODIFIED Requirements
 
 ### Requirement: Global item count metric
 `jellyfin_items_total{type}` SHALL be a gauge with the global item count per media type. Types: Movie, Series, Episode, MusicArtist, MusicAlbum, Audio, Book, MusicVideo, Trailer, BoxSet, Program, Item.

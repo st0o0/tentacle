@@ -1,8 +1,4 @@
-## Purpose
-
-Prometheus collector exposing per-library item counts, total size, and latest-added timestamps for Jellyfin virtual folders.
-
-## Requirements
+## MODIFIED Requirements
 
 ### Requirement: Per-library item count
 `jellyfin_library_items_total{type, library, collection_type}` SHALL be a gauge with the item count per type per library. The `collection_type` label SHALL be populated from `VirtualFolder.CollectionType` (e.g., "movies", "tvshows", "music", "books", "mixed"). Item types enumerated: Movie, Series, Episode, MusicAlbum, MusicArtist, Audio, Book.

@@ -1,15 +1,4 @@
-## Purpose
-
-Prometheus collector exposing registered Jellyfin device counts and per-device last activity timestamps.
-
-## Requirements
-
-### Requirement: Device count metric
-`jellyfin_devices_total` SHALL be a gauge with the total number of registered devices (from `TotalRecordCount`).
-
-#### Scenario: Ten devices
-- **WHEN** the Jellyfin API returns `TotalRecordCount: 10`
-- **THEN** `jellyfin_devices_total` is 10
+## MODIFIED Requirements
 
 ### Requirement: Device last activity metric
 `jellyfin_device_last_activity_timestamp_seconds{device_name, app_name, app_version, user}` SHALL be a gauge with the Unix timestamp of each device's last activity. The `app_version` label SHALL be populated from `DeviceInfo.AppVersion`.

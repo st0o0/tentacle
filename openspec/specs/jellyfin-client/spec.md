@@ -4,6 +4,13 @@ HTTP client for the Jellyfin REST API, handling authentication, request construc
 
 ## Requirements
 
+### Requirement: Package location
+The Jellyfin client SHALL be located at `internal/client/jellyfin/` instead of `internal/jellyfin/`. The public API (types, methods, constructor) SHALL remain unchanged.
+
+#### Scenario: Import path change
+- **WHEN** collectors import the Jellyfin client
+- **THEN** they import from `github.com/st0o0/tentacle/internal/client/jellyfin`
+
 ### Requirement: Authentication
 All requests SHALL include the `Authorization` header with format `MediaBrowser Token="<token>"`.
 
@@ -68,11 +75,19 @@ Non-200 responses SHALL return an error including the status code and up to 512 
 - **THEN** all count fields are populated
 
 ### Requirement: Items endpoint
-`GetItems()` SHALL call `GET /Items` with query parameters: ParentId, Recursive=true, IncludeItemTypes, Fields, Limit, StartIndex. It SHALL return `ItemsResponse` with Items slice and TotalRecordCount.
+`GetItems()` SHALL call `GET /Items` with query parameters: ParentId, Recursive=true, IncludeItemTypes, Fields, Limit, StartIndex. It SHALL return `ItemsResponse` with Items slice and TotalRecordCount. When `Fields` includes "MediaSources", each item SHALL include its `MediaSources[]` with nested `MediaStreams[]` containing Type, Codec, Width, Height, and other stream metadata.
 
 #### Scenario: Paginated items
 - **WHEN** `GetItems(ctx, parentID, "Movie", "Size", 500, 0)` is called
 - **THEN** the request includes `?ParentId=<id>&Recursive=true&IncludeItemTypes=Movie&Fields=Size&Limit=500`
+
+#### Scenario: Items with MediaSources
+- **WHEN** `GetItems(ctx, parentID, "Movie", "MediaSources", 500, 0)` is called
+- **THEN** each returned item includes MediaSources with MediaStreams containing Codec, Type, Width, Height
+
+#### Scenario: MediaStream types
+- **WHEN** an item has video, audio, and subtitle streams
+- **THEN** MediaStreams includes entries with Type "Video", "Audio", and "Subtitle" respectively
 
 ### Requirement: Latest Items endpoint
 `GetLatestItems()` SHALL call `GET /Items/Latest` with ParentId and Limit query parameters.
