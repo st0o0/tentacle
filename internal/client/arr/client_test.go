@@ -26,7 +26,7 @@ func newTestServer(t *testing.T, statusCode int, body any) (*httptest.Server, *r
 
 		w.WriteHeader(statusCode)
 		if body != nil {
-			json.NewEncoder(w).Encode(body)
+			_ = json.NewEncoder(w).Encode(body)
 		}
 	}))
 	t.Cleanup(srv.Close)

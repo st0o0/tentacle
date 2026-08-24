@@ -17,26 +17,26 @@ func newTestServer() *httptest.Server {
 		w.Header().Set("Content-Type", "application/json")
 		switch r.URL.Path {
 		case "/api/v3/system/status":
-			w.Write([]byte(`{"version":"5.3.6","branch":"main","runtimeName":"docker","runtimeVersion":"6.0.0","startTime":"2024-01-01T00:00:00Z"}`))
+			_, _ = w.Write([]byte(`{"version":"5.3.6","branch":"main","runtimeName":"docker","runtimeVersion":"6.0.0","startTime":"2024-01-01T00:00:00Z"}`))
 		case "/api/v3/health":
-			w.Write([]byte(`[{"source":"IndexerStatusCheck","type":"warning","message":"no indexers","wikiUrl":"http://wiki"}]`))
+			_, _ = w.Write([]byte(`[{"source":"IndexerStatusCheck","type":"warning","message":"no indexers","wikiUrl":"http://wiki"}]`))
 		case "/api/v3/movie":
-			w.Write([]byte(`[
+			_, _ = w.Write([]byte(`[
 				{"title":"Movie A","monitored":true,"hasFile":true,"sizeOnDisk":1500000000,"status":"released","year":2023},
 				{"title":"Movie B","monitored":true,"hasFile":false,"sizeOnDisk":0,"status":"announced","year":2024},
 				{"title":"Movie C","monitored":false,"hasFile":true,"sizeOnDisk":2500000000,"status":"released","year":2022}
 			]`))
 		case "/api/v3/wanted/missing":
-			w.Write([]byte(`{"totalRecords":5}`))
+			_, _ = w.Write([]byte(`{"totalRecords":5}`))
 		case "/api/v3/queue":
-			w.Write([]byte(`{"totalRecords":3,"records":[]}`))
+			_, _ = w.Write([]byte(`{"totalRecords":3,"records":[]}`))
 		case "/api/v3/rootfolder":
-			w.Write([]byte(`[
+			_, _ = w.Write([]byte(`[
 				{"path":"/movies","freeSpace":500000000000,"totalSpace":1000000000000},
 				{"path":"/movies2","freeSpace":200000000000,"totalSpace":400000000000}
 			]`))
 		case "/api/v3/calendar":
-			w.Write([]byte(`[{"title":"Upcoming A"},{"title":"Upcoming B"}]`))
+			_, _ = w.Write([]byte(`[{"title":"Upcoming A"},{"title":"Upcoming B"}]`))
 		default:
 			http.NotFound(w, r)
 		}

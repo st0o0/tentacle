@@ -45,7 +45,7 @@ func healthHandler(version string) http.HandlerFunc {
 	start := time.Now()
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]any{
+		_ = json.NewEncoder(w).Encode(map[string]any{
 			"status":  "ok",
 			"version": version,
 			"uptime":  time.Since(start).String(),

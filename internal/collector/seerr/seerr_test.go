@@ -22,7 +22,7 @@ func newTestServer(t *testing.T) *httptest.Server {
 			http.Error(w, "unauthorized", http.StatusUnauthorized)
 			return
 		}
-		json.NewEncoder(w).Encode(seerr.Status{
+		_ = json.NewEncoder(w).Encode(seerr.Status{
 			Version:   "2.3.0",
 			CommitTag: "abc1234",
 		})
