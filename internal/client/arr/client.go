@@ -72,13 +72,49 @@ func (c *Client) GetHealth(ctx context.Context) ([]HealthCheck, error) {
 func (c *Client) GetQueue(ctx context.Context) (*QueueResponse, error) {
 	q := url.Values{}
 	q.Set("page", "1")
-	q.Set("pageSize", "1")
+	q.Set("pageSize", "250")
 
 	var resp QueueResponse
 	if err := c.get(ctx, "/queue", q, &resp); err != nil {
 		return nil, fmt.Errorf("get queue: %w", err)
 	}
 	return &resp, nil
+}
+
+func (c *Client) GetBackups(ctx context.Context) ([]Backup, error) {
+	var backups []Backup
+	if err := c.get(ctx, "/system/backup", nil, &backups); err != nil {
+		return nil, fmt.Errorf("get backups: %w", err)
+	}
+	return backups, nil
+}
+
+func (c *Client) GetUpdates(ctx context.Context) ([]Update, error) {
+	var updates []Update
+	if err := c.get(ctx, "/update", nil, &updates); err != nil {
+		return nil, fmt.Errorf("get updates: %w", err)
+	}
+	return updates, nil
+}
+
+func (c *Client) GetBlocklist(ctx context.Context) (*BlocklistResponse, error) {
+	q := url.Values{}
+	q.Set("page", "1")
+	q.Set("pageSize", "1")
+
+	var resp BlocklistResponse
+	if err := c.get(ctx, "/blocklist", q, &resp); err != nil {
+		return nil, fmt.Errorf("get blocklist: %w", err)
+	}
+	return &resp, nil
+}
+
+func (c *Client) GetDownloadClients(ctx context.Context) ([]DownloadClient, error) {
+	var clients []DownloadClient
+	if err := c.get(ctx, "/downloadclient", nil, &clients); err != nil {
+		return nil, fmt.Errorf("get download clients: %w", err)
+	}
+	return clients, nil
 }
 
 func (c *Client) GetRootFolders(ctx context.Context) ([]RootFolder, error) {

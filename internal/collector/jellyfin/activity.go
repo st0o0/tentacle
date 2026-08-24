@@ -14,8 +14,9 @@ type ActivityCollector struct {
 	timeout time.Duration
 	logger  *slog.Logger
 
-	totalEntries *prometheus.Desc
-	latestEntry  *prometheus.Desc
+	totalEntries   *prometheus.Desc
+	entriesByType  *prometheus.Desc
+	latestEntry    *prometheus.Desc
 }
 
 func NewActivityCollector(client *jellyfin.Client, timeout time.Duration, logger *slog.Logger) *ActivityCollector {
@@ -28,6 +29,11 @@ func NewActivityCollector(client *jellyfin.Client, timeout time.Duration, logger
 			"Total number of activity log entries by severity.",
 			[]string{"severity"}, nil,
 		),
+		entriesByType: prometheus.NewDesc(
+			prometheus.BuildFQName(namespace, "activity_log", "entries_by_type_total"),
+			"Total number of activity log entries by type.",
+			[]string{"type"}, nil,
+		),
 		latestEntry: prometheus.NewDesc(
 			prometheus.BuildFQName(namespace, "activity_log", "latest_timestamp_seconds"),
 			"Unix timestamp of the most recent activity log entry.",
@@ -38,6 +44,7 @@ func NewActivityCollector(client *jellyfin.Client, timeout time.Duration, logger
 
 func (c *ActivityCollector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- c.totalEntries
+	ch <- c.entriesByType
 	ch <- c.latestEntry
 	ch <- scrape.Duration
 	ch <- scrape.Success
@@ -67,12 +74,16 @@ func (c *ActivityCollector) Collect(ch chan<- prometheus.Metric) {
 		"Warning":     0,
 		"Error":       0,
 	}
+	typeCounts := make(map[string]float64)
 
 	var latestTime time.Time
 
 	for _, entry := range resp.Items {
 		if entry.Severity != "" {
 			severityCounts[entry.Severity]++
+		}
+		if entry.Type != "" {
+			typeCounts[entry.Type]++
 		}
 		if t, ok := parseJellyfinTime(entry.Date); ok && t.After(latestTime) {
 			latestTime = t
@@ -81,6 +92,9 @@ func (c *ActivityCollector) Collect(ch chan<- prometheus.Metric) {
 
 	for severity, count := range severityCounts {
 		ch <- prometheus.MustNewConstMetric(c.totalEntries, prometheus.GaugeValue, count, severity)
+	}
+	for entryType, count := range typeCounts {
+		ch <- prometheus.MustNewConstMetric(c.entriesByType, prometheus.GaugeValue, count, entryType)
 	}
 
 	if !latestTime.IsZero() {

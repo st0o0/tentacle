@@ -69,4 +69,6 @@ func (c *CountsCollector) Collect(ch chan<- prometheus.Metric) {
 	emit("MusicVideo", counts.MusicVideoCount)
 	emit("Trailer", counts.TrailerCount)
 	emit("BoxSet", counts.BoxSetCount)
+	emit("Program", counts.ProgramCount)
+	emit("Item", counts.ItemCount)
 }

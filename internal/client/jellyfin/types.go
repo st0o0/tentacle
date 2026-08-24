@@ -65,11 +65,24 @@ type ItemsResponse struct {
 }
 
 type Item struct {
-	Id          string `json:"Id"`
-	Name        string `json:"Name"`
-	Type        string `json:"Type"`
-	Size        int64  `json:"Size"`
-	DateCreated string `json:"DateCreated"`
+	Id           string        `json:"Id"`
+	Name         string        `json:"Name"`
+	Type         string        `json:"Type"`
+	Size         int64         `json:"Size"`
+	DateCreated  string        `json:"DateCreated"`
+	MediaSources []MediaSource `json:"MediaSources"`
+}
+
+type MediaSource struct {
+	Container    string        `json:"Container"`
+	MediaStreams  []MediaStream `json:"MediaStreams"`
+}
+
+type MediaStream struct {
+	Type   string `json:"Type"`
+	Codec  string `json:"Codec"`
+	Width  int    `json:"Width"`
+	Height int    `json:"Height"`
 }
 
 type ItemCounts struct {

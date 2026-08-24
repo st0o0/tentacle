@@ -43,6 +43,7 @@ func TestSystemCollector(t *testing.T) {
 			Version:     "4.0.0.1",
 			Branch:      "main",
 			RuntimeName: "dotnet",
+			StartTime:   "2024-01-01T00:00:00Z",
 		},
 		"/api/v3/health": []arr.HealthCheck{
 			{Type: "warning", Source: "IndexerStatusCheck"},
@@ -62,9 +63,10 @@ func TestSystemCollector(t *testing.T) {
 	}
 
 	found := map[string]bool{
-		"sonarr_up":                  false,
-		"sonarr_system_info":         false,
-		"sonarr_health_issues_total": false,
+		"sonarr_up":                           false,
+		"sonarr_system_info":                  false,
+		"sonarr_system_start_time_seconds":    false,
+		"sonarr_health_issues_total":          false,
 	}
 
 	for _, mf := range mfs {
@@ -91,6 +93,11 @@ func TestSystemCollector(t *testing.T) {
 			if labels["runtime"] != "dotnet" {
 				t.Errorf("expected runtime=dotnet, got %s", labels["runtime"])
 			}
+		case "sonarr_system_start_time_seconds":
+			found[name] = true
+			if v := mf.GetMetric()[0].GetGauge().GetValue(); v != 1704067200 {
+				t.Errorf("expected start_time=1704067200, got %v", v)
+			}
 		case "sonarr_health_issues_total":
 			found[name] = true
 			if len(mf.GetMetric()) != 2 {
@@ -109,9 +116,9 @@ func TestSystemCollector(t *testing.T) {
 func TestSeriesCollector(t *testing.T) {
 	srv := newTestServer(t, map[string]any{
 		"/api/v3/series": []arr.Series{
-			{Title: "Show A", Monitored: true, TotalEpisodeCount: 20, EpisodeFileCount: 15, SizeOnDisk: 5000000000},
-			{Title: "Show B", Monitored: false, TotalEpisodeCount: 10, EpisodeFileCount: 10, SizeOnDisk: 3000000000},
-			{Title: "Show C", Monitored: true, TotalEpisodeCount: 5, EpisodeFileCount: 2, SizeOnDisk: 1000000000},
+			{Title: "Show A", Monitored: true, Status: "continuing", SeasonCount: 5, TotalEpisodeCount: 20, EpisodeFileCount: 15, SizeOnDisk: 5000000000},
+			{Title: "Show B", Monitored: false, Status: "ended", SeasonCount: 3, TotalEpisodeCount: 10, EpisodeFileCount: 10, SizeOnDisk: 3000000000},
+			{Title: "Show C", Monitored: true, Status: "continuing", SeasonCount: 2, TotalEpisodeCount: 5, EpisodeFileCount: 2, SizeOnDisk: 1000000000},
 		},
 		"/api/v3/wanted/missing": arr.WantedResponse{TotalRecords: 8},
 	})
@@ -128,12 +135,13 @@ func TestSeriesCollector(t *testing.T) {
 	}
 
 	expected := map[string]float64{
-		"sonarr_series_total":           3,
-		"sonarr_series_monitored_total": 2,
-		"sonarr_episodes_total":         35, // 20+10+5
+		"sonarr_series_total":              3,
+		"sonarr_series_monitored_total":    2,
+		"sonarr_seasons_total":             10, // 5+3+2
+		"sonarr_episodes_total":            35, // 20+10+5
 		"sonarr_episodes_downloaded_total": 27, // 15+10+2
-		"sonarr_episodes_missing_total": 8,
-		"sonarr_series_size_bytes":      9000000000, // 5B+3B+1B
+		"sonarr_episodes_missing_total":    8,
+		"sonarr_series_size_bytes":         9000000000, // 5B+3B+1B
 	}
 
 	for _, mf := range mfs {
@@ -154,22 +162,107 @@ func TestSeriesCollector(t *testing.T) {
 
 func TestQueueCollector(t *testing.T) {
 	srv := newTestServer(t, map[string]any{
-		"/api/v3/queue": arr.QueueResponse{TotalRecords: 5},
+		"/api/v3/queue": arr.QueueResponse{
+			TotalRecords: 4,
+			Records: []arr.QueueRecord{
+				{TrackedDownloadState: "downloading"},
+				{TrackedDownloadState: "downloading"},
+				{TrackedDownloadState: "importPending"},
+				{TrackedDownloadState: "failedPending"},
+			},
+		},
 	})
 	defer srv.Close()
 
 	c := NewQueueCollector(newClient(srv.URL), 5*time.Second, slog.Default())
 
-	reg := prometheus.NewRegistry()
-	reg.MustRegister(c)
-
 	expected := strings.NewReader(`
 # HELP sonarr_queue_total Total number of items in the download queue.
 # TYPE sonarr_queue_total gauge
-sonarr_queue_total 5
+sonarr_queue_total 4
 `)
 	if err := testutil.CollectAndCompare(c, expected, "sonarr_queue_total"); err != nil {
-		t.Errorf("queue metric mismatch: %v", err)
+		t.Errorf("queue total mismatch: %v", err)
+	}
+
+	// Verify by_state counts exist
+	reg := prometheus.NewRegistry()
+	reg.MustRegister(c)
+	mfs, err := reg.Gather()
+	if err != nil {
+		t.Fatalf("gather failed: %v", err)
+	}
+	found := false
+	for _, mf := range mfs {
+		if mf.GetName() == "sonarr_queue_by_state_total" {
+			found = true
+			if len(mf.GetMetric()) != 3 {
+				t.Errorf("expected 3 state metrics, got %d", len(mf.GetMetric()))
+			}
+		}
+	}
+	if !found {
+		t.Error("sonarr_queue_by_state_total not found")
+	}
+}
+
+func TestExtrasCollector(t *testing.T) {
+	srv := newTestServer(t, map[string]any{
+		"/api/v3/system/backup": []arr.Backup{
+			{Id: 1, Name: "backup1", Time: "2024-06-15T08:00:00Z"},
+			{Id: 2, Name: "backup2", Time: "2024-06-14T08:00:00Z"},
+		},
+		"/api/v3/update": []arr.Update{
+			{Version: "4.1.0", Installed: false, Latest: true},
+			{Version: "4.0.0", Installed: true, Latest: false},
+		},
+		"/api/v3/blocklist": arr.BlocklistResponse{TotalRecords: 15},
+		"/api/v3/downloadclient": []arr.DownloadClient{
+			{Name: "SABnzbd", Protocol: "usenet", Priority: 1, Enable: true},
+			{Name: "Disabled", Protocol: "torrent", Priority: 2, Enable: false},
+		},
+	})
+	defer srv.Close()
+
+	c := NewExtrasCollector(newClient(srv.URL), 5*time.Second, slog.Default())
+
+	reg := prometheus.NewRegistry()
+	reg.MustRegister(c)
+
+	mfs, err := reg.Gather()
+	if err != nil {
+		t.Fatalf("gather failed: %v", err)
+	}
+
+	checks := map[string]float64{
+		"sonarr_backup_total":    2,
+		"sonarr_blocklist_total": 15,
+	}
+
+	for _, mf := range mfs {
+		name := mf.GetName()
+		if exp, ok := checks[name]; ok {
+			got := mf.GetMetric()[0].GetGauge().GetValue()
+			if got != exp {
+				t.Errorf("%s: expected %v, got %v", name, exp, got)
+			}
+			delete(checks, name)
+		}
+		if name == "sonarr_update_available" {
+			m := mf.GetMetric()[0]
+			if m.GetGauge().GetValue() != 1 {
+				t.Errorf("expected update_available=1, got %v", m.GetGauge().GetValue())
+			}
+		}
+		if name == "sonarr_download_client_info" {
+			if len(mf.GetMetric()) != 1 {
+				t.Errorf("expected 1 download client info (only enabled), got %d", len(mf.GetMetric()))
+			}
+		}
+	}
+
+	for name := range checks {
+		t.Errorf("metric %s not found", name)
 	}
 }
 

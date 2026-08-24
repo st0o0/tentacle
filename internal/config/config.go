@@ -108,22 +108,6 @@ func (r *envReader) duration(key string, defaultVal time.Duration) time.Duration
 	return d
 }
 
-func (r *envReader) boolean(key string, defaultVal bool) bool {
-	v := r.getenv(key)
-	if v == "" {
-		return defaultVal
-	}
-	switch strings.ToLower(v) {
-	case "true", "1", "yes", "on":
-		return true
-	case "false", "0", "no", "off":
-		return false
-	default:
-		r.setErr(fmt.Errorf("%s: invalid boolean %q (true, false)", key, v))
-		return defaultVal
-	}
-}
-
 func (r *envReader) logLevel(key string, defaultVal slog.Level) slog.Level {
 	v := r.getenv(key)
 	if v == "" {
@@ -158,31 +142,3 @@ func (r *envReader) logFormat(key, defaultVal string) string {
 	}
 }
 
-var _ error = (*validationError)(nil)
-
-type validationError struct {
-	errs []error
-}
-
-func (e *validationError) Error() string {
-	msgs := make([]string, len(e.errs))
-	for i, err := range e.errs {
-		msgs[i] = err.Error()
-	}
-	return strings.Join(msgs, "; ")
-}
-
-func (e *validationError) Unwrap() []error {
-	return e.errs
-}
-
-func Validate(cfg Config) error {
-	var errs []error
-	if cfg.Jellyfin == nil && cfg.Sonarr == nil && cfg.Radarr == nil && cfg.Prowlarr == nil && cfg.Audiobookshelf == nil && cfg.Seerr == nil {
-		errs = append(errs, errors.New("at least one service must be configured"))
-	}
-	if len(errs) > 0 {
-		return &validationError{errs: errs}
-	}
-	return nil
-}

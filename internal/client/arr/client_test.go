@@ -144,8 +144,8 @@ func TestGetQueueParams(t *testing.T) {
 	if !contains(q, "page=1") {
 		t.Fatalf("query %q missing page=1", q)
 	}
-	if !contains(q, "pageSize=1") {
-		t.Fatalf("query %q missing pageSize=1", q)
+	if !contains(q, "pageSize=250") {
+		t.Fatalf("query %q missing pageSize=250", q)
 	}
 	if resp.TotalRecords != 5 {
 		t.Fatalf("TotalRecords = %d, want 5", resp.TotalRecords)

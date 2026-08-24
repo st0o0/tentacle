@@ -23,3 +23,9 @@ type PageInfo struct {
 	Pages   int `json:"pages"`
 	Results int `json:"results"`
 }
+
+type IssueCount struct {
+	Total    int `json:"total"`
+	Open     int `json:"open"`
+	Resolved int `json:"resolved"`
+}

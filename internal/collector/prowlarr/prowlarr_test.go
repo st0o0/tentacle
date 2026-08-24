@@ -75,9 +75,19 @@ func TestSystemCollector_Success(t *testing.T) {
 		t.Error(err)
 	}
 
-	// total metric count: up + info + 2 health + scrape_duration + scrape_success = 6
-	if count := testutil.CollectAndCount(c); count != 6 {
-		t.Errorf("metric count = %d, want 6", count)
+	// start_time
+	expected = `
+		# HELP prowlarr_system_start_time_seconds Unix timestamp of when Prowlarr started.
+		# TYPE prowlarr_system_start_time_seconds gauge
+		prowlarr_system_start_time_seconds 1.7040672e+09
+	`
+	if err := testutil.CollectAndCompare(c, strings.NewReader(expected), "prowlarr_system_start_time_seconds"); err != nil {
+		t.Error(err)
+	}
+
+	// total metric count: up + info + start_time + 2 health + scrape_duration + scrape_success = 7
+	if count := testutil.CollectAndCount(c); count != 7 {
+		t.Errorf("metric count = %d, want 7", count)
 	}
 }
 
@@ -223,9 +233,20 @@ func TestIndexersCollector_Success(t *testing.T) {
 		t.Error(err)
 	}
 
-	// total: indexersTotal(1) + enabledTotal(1) + 2*5 stats(10) + scrape_duration(1) + scrape_success(1) = 14
-	if count := testutil.CollectAndCount(c); count != 14 {
-		t.Errorf("metric count = %d, want 14", count)
+	// by_protocol
+	expected = `
+		# HELP prowlarr_indexers_by_protocol_total Number of indexers by protocol.
+		# TYPE prowlarr_indexers_by_protocol_total gauge
+		prowlarr_indexers_by_protocol_total{protocol="torrent"} 2
+		prowlarr_indexers_by_protocol_total{protocol="usenet"} 1
+	`
+	if err := testutil.CollectAndCompare(c, strings.NewReader(expected), "prowlarr_indexers_by_protocol_total"); err != nil {
+		t.Error(err)
+	}
+
+	// total: indexersTotal(1) + enabledTotal(1) + byProtocol(2) + 2*5 stats(10) + scrape_duration(1) + scrape_success(1) = 16
+	if count := testutil.CollectAndCount(c); count != 16 {
+		t.Errorf("metric count = %d, want 16", count)
 	}
 }
 
@@ -286,6 +307,61 @@ func TestIndexersCollector_StatsFailure(t *testing.T) {
 		prowlarr_scrape_success{collector="indexers"} 0
 	`
 	if err := testutil.CollectAndCompare(c, strings.NewReader(expected), "prowlarr_scrape_success"); err != nil {
+		t.Error(err)
+	}
+}
+
+func TestAppsCollector_Success(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v3/applications", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`[
+			{"name": "Sonarr", "syncLevel": "fullSync", "implementation": "Sonarr"},
+			{"name": "Radarr", "syncLevel": "fullSync", "implementation": "Radarr"}
+		]`))
+	})
+	mux.HandleFunc("/api/v3/indexer", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`[
+			{"id": 1, "name": "NZBgeek", "enable": true, "protocol": "usenet", "priority": 1},
+			{"id": 2, "name": "Torznab", "enable": true, "protocol": "torrent", "priority": 2}
+		]`))
+	})
+	mux.HandleFunc("/api/v3/indexerstatus", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`[{"indexerId": 1, "disabledTill": "2099-01-01T00:00:00Z"}]`))
+	})
+
+	srv, client := newTestServer(mux)
+	defer srv.Close()
+
+	c := NewAppsCollector(client, 5*time.Second, slog.Default())
+
+	expected := `
+		# HELP prowlarr_apps_total Total number of connected applications.
+		# TYPE prowlarr_apps_total gauge
+		prowlarr_apps_total 2
+	`
+	if err := testutil.CollectAndCompare(c, strings.NewReader(expected), "prowlarr_apps_total"); err != nil {
+		t.Error(err)
+	}
+
+	expected = `
+		# HELP prowlarr_app_info Connected application information.
+		# TYPE prowlarr_app_info gauge
+		prowlarr_app_info{implementation="Radarr",name="Radarr",sync_level="fullSync"} 1
+		prowlarr_app_info{implementation="Sonarr",name="Sonarr",sync_level="fullSync"} 1
+	`
+	if err := testutil.CollectAndCompare(c, strings.NewReader(expected), "prowlarr_app_info"); err != nil {
+		t.Error(err)
+	}
+
+	expected = `
+		# HELP prowlarr_indexer_disabled Whether an indexer is temporarily disabled.
+		# TYPE prowlarr_indexer_disabled gauge
+		prowlarr_indexer_disabled{indexer="NZBgeek"} 1
+	`
+	if err := testutil.CollectAndCompare(c, strings.NewReader(expected), "prowlarr_indexer_disabled"); err != nil {
 		t.Error(err)
 	}
 }

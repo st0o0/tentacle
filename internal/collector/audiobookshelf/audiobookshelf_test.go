@@ -19,18 +19,22 @@ func newTestClient(url string) *audiobookshelf.Client {
 // --- SystemCollector ---
 
 func TestSystemCollector_Up(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/ping" {
-			t.Errorf("unexpected path: %s", r.URL.Path)
-		}
+	mux := http.NewServeMux()
+	mux.HandleFunc("/ping", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-	}))
+	})
+	mux.HandleFunc("/api/backups", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"backups":[{"id":"b1","createdAt":1700000000000,"serverVersion":"2.17.0"}]}`))
+	})
+	srv := httptest.NewServer(mux)
 	defer srv.Close()
 
 	c := NewSystemCollector(newTestClient(srv.URL), 5*time.Second, slog.Default())
 
 	families := collect(t, c)
 	assertGauge(t, families, "audiobookshelf_up", nil, 1)
+	assertGauge(t, families, "audiobookshelf_system_info", map[string]string{"version": "2.17.0"}, 1)
 	assertGauge(t, families, "audiobookshelf_scrape_success", map[string]string{"collector": "system"}, 1)
 }
 
@@ -60,7 +64,7 @@ func TestLibrariesCollector(t *testing.T) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/libraries", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(`{"libraries":[{"id":"lib1","name":"Audiobooks","mediaType":"book"},{"id":"lib2","name":"Podcasts","mediaType":"podcast"}]}`))
+		w.Write([]byte(`{"libraries":[{"id":"lib1","name":"Audiobooks","mediaType":"book","lastUpdate":1700000000000},{"id":"lib2","name":"Podcasts","mediaType":"podcast","lastUpdate":1700500000000}]}`))
 	})
 	mux.HandleFunc("/api/libraries/lib1/stats", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -82,6 +86,8 @@ func TestLibrariesCollector(t *testing.T) {
 	assertGauge(t, families, "audiobookshelf_library_size_bytes", map[string]string{"library": "Audiobooks", "media_type": "book"}, 1073741824)
 	assertGauge(t, families, "audiobookshelf_library_items_total", map[string]string{"library": "Podcasts", "media_type": "podcast"}, 10)
 	assertGauge(t, families, "audiobookshelf_library_size_bytes", map[string]string{"library": "Podcasts", "media_type": "podcast"}, 524288000)
+	assertGauge(t, families, "audiobookshelf_library_last_update_timestamp_seconds", map[string]string{"library": "Audiobooks", "media_type": "book"}, 1700000000)
+	assertGauge(t, families, "audiobookshelf_library_last_update_timestamp_seconds", map[string]string{"library": "Podcasts", "media_type": "podcast"}, 1700500000)
 	assertGauge(t, families, "audiobookshelf_scrape_success", map[string]string{"collector": "libraries"}, 1)
 }
 
@@ -103,7 +109,15 @@ func TestUsersCollector(t *testing.T) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/users", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(`[{"id":"u1","username":"alice","type":"admin","isActive":true,"lastSeen":1700000000000,"createdAt":1690000000000},{"id":"u2","username":"bob","type":"user","isActive":true,"lastSeen":1700500000000,"createdAt":1690000000000}]`))
+		w.Write([]byte(`[{"id":"u1","username":"alice","type":"admin","isActive":true,"lastSeen":1700000000000,"createdAt":1690000000000},{"id":"u2","username":"bob","type":"user","isActive":false,"lastSeen":1700500000000,"createdAt":1690000000000}]`))
+	})
+	mux.HandleFunc("/api/users/u1/listening-stats", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"totalTime":86400}`))
+	})
+	mux.HandleFunc("/api/users/u2/listening-stats", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"totalTime":3600}`))
 	})
 	mux.HandleFunc("/api/users/online", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -117,10 +131,12 @@ func TestUsersCollector(t *testing.T) {
 
 	families := collect(t, c)
 	assertGauge(t, families, "audiobookshelf_users_total", nil, 2)
+	assertGauge(t, families, "audiobookshelf_users_active_total", nil, 1)
 	assertGauge(t, families, "audiobookshelf_users_online", nil, 1)
-	// lastSeen 1700000000000 ms -> 1700000000 seconds
 	assertGauge(t, families, "audiobookshelf_user_last_seen_timestamp_seconds", map[string]string{"user": "alice", "type": "admin"}, 1700000000)
 	assertGauge(t, families, "audiobookshelf_user_last_seen_timestamp_seconds", map[string]string{"user": "bob", "type": "user"}, 1700500000)
+	assertGauge(t, families, "audiobookshelf_user_listening_time_seconds", map[string]string{"user": "alice"}, 86400)
+	assertGauge(t, families, "audiobookshelf_user_listening_time_seconds", map[string]string{"user": "bob"}, 3600)
 	assertGauge(t, families, "audiobookshelf_scrape_success", map[string]string{"collector": "users"}, 1)
 }
 

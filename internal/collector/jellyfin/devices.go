@@ -31,7 +31,7 @@ func NewDevicesCollector(client *jellyfin.Client, timeout time.Duration, logger 
 		lastActivity: prometheus.NewDesc(
 			prometheus.BuildFQName(namespace, "device", "last_activity_timestamp_seconds"),
 			"Unix timestamp of a device's last activity.",
-			[]string{"device_name", "app_name", "user"}, nil,
+			[]string{"device_name", "app_name", "app_version", "user"}, nil,
 		),
 	}
 }
@@ -65,7 +65,7 @@ func (c *DevicesCollector) Collect(ch chan<- prometheus.Metric) {
 
 	for _, d := range resp.Items {
 		if t, ok := parseJellyfinTime(d.DateLastActivity); ok {
-			ch <- prometheus.MustNewConstMetric(c.lastActivity, prometheus.GaugeValue, float64(t.Unix()), d.Name, d.AppName, d.LastUserName)
+			ch <- prometheus.MustNewConstMetric(c.lastActivity, prometheus.GaugeValue, float64(t.Unix()), d.Name, d.AppName, d.AppVersion, d.LastUserName)
 		}
 	}
 }

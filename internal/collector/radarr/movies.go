@@ -14,11 +14,12 @@ type MoviesCollector struct {
 	timeout time.Duration
 	logger  *slog.Logger
 
-	total       *prometheus.Desc
-	monitored   *prometheus.Desc
-	downloaded  *prometheus.Desc
-	missing     *prometheus.Desc
-	sizeBytes   *prometheus.Desc
+	total        *prometheus.Desc
+	monitored    *prometheus.Desc
+	byStatus     *prometheus.Desc
+	downloaded   *prometheus.Desc
+	missing      *prometheus.Desc
+	sizeBytes    *prometheus.Desc
 }
 
 func NewMoviesCollector(client *arr.Client, timeout time.Duration, logger *slog.Logger) *MoviesCollector {
@@ -35,6 +36,11 @@ func NewMoviesCollector(client *arr.Client, timeout time.Duration, logger *slog.
 			prometheus.BuildFQName(namespace, "movies", "monitored_total"),
 			"Total number of monitored movies.",
 			nil, nil,
+		),
+		byStatus: prometheus.NewDesc(
+			prometheus.BuildFQName(namespace, "movies", "by_status_total"),
+			"Number of movies by status.",
+			[]string{"status"}, nil,
 		),
 		downloaded: prometheus.NewDesc(
 			prometheus.BuildFQName(namespace, "movies", "downloaded_total"),
@@ -57,6 +63,7 @@ func NewMoviesCollector(client *arr.Client, timeout time.Duration, logger *slog.
 func (c *MoviesCollector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- c.total
 	ch <- c.monitored
+	ch <- c.byStatus
 	ch <- c.downloaded
 	ch <- c.missing
 	ch <- c.sizeBytes
@@ -85,6 +92,7 @@ func (c *MoviesCollector) Collect(ch chan<- prometheus.Metric) {
 
 	var monitoredCount, downloadedCount int
 	var totalSize int64
+	statusCounts := make(map[string]int)
 	for _, m := range movies {
 		if m.Monitored {
 			monitoredCount++
@@ -93,10 +101,16 @@ func (c *MoviesCollector) Collect(ch chan<- prometheus.Metric) {
 			downloadedCount++
 		}
 		totalSize += m.SizeOnDisk
+		if m.Status != "" {
+			statusCounts[m.Status]++
+		}
 	}
 
 	ch <- prometheus.MustNewConstMetric(c.total, prometheus.GaugeValue, float64(len(movies)))
 	ch <- prometheus.MustNewConstMetric(c.monitored, prometheus.GaugeValue, float64(monitoredCount))
+	for status, count := range statusCounts {
+		ch <- prometheus.MustNewConstMetric(c.byStatus, prometheus.GaugeValue, float64(count), status)
+	}
 	ch <- prometheus.MustNewConstMetric(c.downloaded, prometheus.GaugeValue, float64(downloadedCount))
 	ch <- prometheus.MustNewConstMetric(c.sizeBytes, prometheus.GaugeValue, float64(totalSize))
 

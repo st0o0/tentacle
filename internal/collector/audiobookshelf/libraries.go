@@ -23,6 +23,7 @@ type LibrariesCollector struct {
 	genresTotal    *prometheus.Desc
 	missingTotal   *prometheus.Desc
 	invalidTotal   *prometheus.Desc
+	lastUpdate     *prometheus.Desc
 }
 
 func NewLibrariesCollector(client *audiobookshelf.Client, timeout time.Duration, logger *slog.Logger) *LibrariesCollector {
@@ -76,6 +77,11 @@ func NewLibrariesCollector(client *audiobookshelf.Client, timeout time.Duration,
 			"Total number of invalid items in a library.",
 			labels, nil,
 		),
+		lastUpdate: prometheus.NewDesc(
+			prometheus.BuildFQName(namespace, "library", "last_update_timestamp_seconds"),
+			"Unix timestamp of when a library was last updated.",
+			labels, nil,
+		),
 	}
 }
 
@@ -89,6 +95,7 @@ func (c *LibrariesCollector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- c.genresTotal
 	ch <- c.missingTotal
 	ch <- c.invalidTotal
+	ch <- c.lastUpdate
 	ch <- scrape.Duration
 	ch <- scrape.Success
 }
@@ -111,13 +118,17 @@ func (c *LibrariesCollector) Collect(ch chan<- prometheus.Metric) {
 	ch <- prometheus.MustNewConstMetric(c.librariesTotal, prometheus.GaugeValue, float64(len(libraries)))
 
 	for _, lib := range libraries {
+		labels := []string{lib.Name, lib.MediaType}
+
+		if lib.LastUpdate > 0 {
+			ch <- prometheus.MustNewConstMetric(c.lastUpdate, prometheus.GaugeValue, float64(lib.LastUpdate)/1000.0, labels...)
+		}
+
 		stats, err := c.client.GetLibraryStats(ctx, lib.Id)
 		if err != nil {
 			c.logger.Error("library stats failed", "library", lib.Name, "err", err)
 			continue
 		}
-
-		labels := []string{lib.Name, lib.MediaType}
 
 		ch <- prometheus.MustNewConstMetric(c.itemsTotal, prometheus.GaugeValue, float64(stats.TotalItems), labels...)
 		ch <- prometheus.MustNewConstMetric(c.sizeBytes, prometheus.GaugeValue, float64(stats.TotalSize), labels...)

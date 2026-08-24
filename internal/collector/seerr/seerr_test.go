@@ -44,6 +44,18 @@ func newTestServer(t *testing.T) *httptest.Server {
 		})
 	})
 
+	mux.HandleFunc("/api/v1/issue/count", func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("X-Api-Key") == "" {
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+		json.NewEncoder(w).Encode(seerr.IssueCount{
+			Total:    10,
+			Open:     3,
+			Resolved: 7,
+		})
+	})
+
 	mux.HandleFunc("/api/v1/user", func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("X-Api-Key") == "" {
 			http.Error(w, "unauthorized", http.StatusUnauthorized)
@@ -135,6 +147,30 @@ func TestUsersCollector(t *testing.T) {
 		seerr_users_total 15
 	`
 	if err := testutil.CollectAndCompare(c, readExpected(expected), "seerr_users_total"); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestIssuesCollector(t *testing.T) {
+	srv := newTestServer(t)
+	c := NewIssuesCollector(newClient(srv), 5*time.Second, slog.Default())
+
+	expected := `
+		# HELP seerr_issues_total Total number of reported issues.
+		# TYPE seerr_issues_total gauge
+		seerr_issues_total 10
+	`
+	if err := testutil.CollectAndCompare(c, readExpected(expected), "seerr_issues_total"); err != nil {
+		t.Fatal(err)
+	}
+
+	expected = `
+		# HELP seerr_issues_by_status_total Number of issues by status.
+		# TYPE seerr_issues_by_status_total gauge
+		seerr_issues_by_status_total{status="open"} 3
+		seerr_issues_by_status_total{status="resolved"} 7
+	`
+	if err := testutil.CollectAndCompare(c, readExpected(expected), "seerr_issues_by_status_total"); err != nil {
 		t.Fatal(err)
 	}
 }

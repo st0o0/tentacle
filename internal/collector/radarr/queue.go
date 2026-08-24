@@ -14,7 +14,8 @@ type QueueCollector struct {
 	timeout time.Duration
 	logger  *slog.Logger
 
-	total *prometheus.Desc
+	total    *prometheus.Desc
+	byState  *prometheus.Desc
 }
 
 func NewQueueCollector(client *arr.Client, timeout time.Duration, logger *slog.Logger) *QueueCollector {
@@ -27,11 +28,17 @@ func NewQueueCollector(client *arr.Client, timeout time.Duration, logger *slog.L
 			"Total number of items in the queue.",
 			nil, nil,
 		),
+		byState: prometheus.NewDesc(
+			prometheus.BuildFQName(namespace, "queue", "by_state_total"),
+			"Number of queue items by tracked download state.",
+			[]string{"state"}, nil,
+		),
 	}
 }
 
 func (c *QueueCollector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- c.total
+	ch <- c.byState
 	ch <- scrape.Duration
 	ch <- scrape.Success
 }
@@ -55,4 +62,14 @@ func (c *QueueCollector) Collect(ch chan<- prometheus.Metric) {
 
 	ch <- prometheus.MustNewConstMetric(scrape.Success, prometheus.GaugeValue, 1, "queue")
 	ch <- prometheus.MustNewConstMetric(c.total, prometheus.GaugeValue, float64(queue.TotalRecords))
+
+	stateCounts := make(map[string]int)
+	for _, r := range queue.Records {
+		if r.TrackedDownloadState != "" {
+			stateCounts[r.TrackedDownloadState]++
+		}
+	}
+	for state, count := range stateCounts {
+		ch <- prometheus.MustNewConstMetric(c.byState, prometheus.GaugeValue, float64(count), state)
+	}
 }

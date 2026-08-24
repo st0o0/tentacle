@@ -33,7 +33,10 @@ func main() {
 			fmt.Println(version)
 			os.Exit(0)
 		case "healthcheck":
-			addr := ":9594"
+			addr := os.Getenv("TENTACLE_LISTEN_ADDRESS")
+			if addr == "" {
+				addr = ":9594"
+			}
 			if len(os.Args) > 2 {
 				addr = os.Args[2]
 			}
@@ -49,6 +52,9 @@ func main() {
 
 	logger := newLogger(cfg)
 	slog.SetDefault(logger)
+
+	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
+	defer cancel()
 
 	httpClient := &http.Client{Timeout: cfg.ScrapeTimeout}
 	reg := prometheus.NewRegistry()
@@ -88,6 +94,7 @@ func main() {
 			sonarrcollector.NewQueueCollector(client, cfg.ScrapeTimeout, logger),
 			sonarrcollector.NewDiskCollector(client, cfg.ScrapeTimeout, logger),
 			sonarrcollector.NewCalendarCollector(client, cfg.ScrapeTimeout, logger),
+			sonarrcollector.NewExtrasCollector(client, cfg.ScrapeTimeout, logger),
 		)
 		logger.Info("registered sonarr collectors", "addr", cfg.Sonarr.Address)
 	}
@@ -100,6 +107,7 @@ func main() {
 			radarrcollector.NewQueueCollector(client, cfg.ScrapeTimeout, logger),
 			radarrcollector.NewDiskCollector(client, cfg.ScrapeTimeout, logger),
 			radarrcollector.NewCalendarCollector(client, cfg.ScrapeTimeout, logger),
+			radarrcollector.NewExtrasCollector(client, cfg.ScrapeTimeout, logger),
 		)
 		logger.Info("registered radarr collectors", "addr", cfg.Radarr.Address)
 	}
@@ -109,6 +117,7 @@ func main() {
 		reg.MustRegister(
 			prowlarrcollector.NewSystemCollector(client, cfg.ScrapeTimeout, logger),
 			prowlarrcollector.NewIndexersCollector(client, cfg.ScrapeTimeout, logger),
+			prowlarrcollector.NewAppsCollector(client, cfg.ScrapeTimeout, logger),
 		)
 		logger.Info("registered prowlarr collectors", "addr", cfg.Prowlarr.Address)
 	}
@@ -131,12 +140,10 @@ func main() {
 			seerrcollector.NewSystemCollector(client, cfg.ScrapeTimeout, logger),
 			seerrcollector.NewRequestsCollector(client, cfg.ScrapeTimeout, logger),
 			seerrcollector.NewUsersCollector(client, cfg.ScrapeTimeout, logger),
+			seerrcollector.NewIssuesCollector(client, cfg.ScrapeTimeout, logger),
 		)
 		logger.Info("registered seerr collectors", "addr", cfg.Seerr.Address)
 	}
-
-	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
-	defer cancel()
 
 	logger.Info("starting tentacle", "version", version, "addr", cfg.ListenAddress)
 

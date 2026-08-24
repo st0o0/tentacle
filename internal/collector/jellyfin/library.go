@@ -33,17 +33,17 @@ func NewLibraryCollector(client *jellyfin.Client, timeout time.Duration, logger 
 		itemsTotal: prometheus.NewDesc(
 			prometheus.BuildFQName(namespace, "library", "items_total"),
 			"Total number of items in a library by type.",
-			[]string{"type", "library"}, nil,
+			[]string{"type", "library", "collection_type"}, nil,
 		),
 		sizeBytes: prometheus.NewDesc(
 			prometheus.BuildFQName(namespace, "library", "size_bytes"),
 			"Total size of a library in bytes.",
-			[]string{"library"}, nil,
+			[]string{"library", "collection_type"}, nil,
 		),
 		latestAdded: prometheus.NewDesc(
 			prometheus.BuildFQName(namespace, "library", "latest_added_timestamp_seconds"),
 			"Unix timestamp of the most recently added item in a library.",
-			[]string{"library"}, nil,
+			[]string{"library", "collection_type"}, nil,
 		),
 	}
 }
@@ -72,6 +72,7 @@ func (c *LibraryCollector) Collect(ch chan<- prometheus.Metric) {
 	}
 
 	for _, folder := range folders {
+		ct := folder.CollectionType
 		for _, itemType := range itemTypes {
 			resp, err := c.client.GetItems(ctx, folder.ItemId, itemType, "", 0, 0)
 			if err != nil {
@@ -79,7 +80,7 @@ func (c *LibraryCollector) Collect(ch chan<- prometheus.Metric) {
 				success = false
 				continue
 			}
-			ch <- prometheus.MustNewConstMetric(c.itemsTotal, prometheus.GaugeValue, float64(resp.TotalRecordCount), itemType, folder.Name)
+			ch <- prometheus.MustNewConstMetric(c.itemsTotal, prometheus.GaugeValue, float64(resp.TotalRecordCount), itemType, folder.Name, ct)
 		}
 
 		size, err := c.librarySize(ctx, folder.ItemId)
@@ -87,7 +88,7 @@ func (c *LibraryCollector) Collect(ch chan<- prometheus.Metric) {
 			c.logger.Warn("failed to get library size", "library", folder.Name, "err", err)
 			success = false
 		} else {
-			ch <- prometheus.MustNewConstMetric(c.sizeBytes, prometheus.GaugeValue, float64(size), folder.Name)
+			ch <- prometheus.MustNewConstMetric(c.sizeBytes, prometheus.GaugeValue, float64(size), folder.Name, ct)
 		}
 
 		latest, err := c.client.GetLatestItems(ctx, folder.ItemId, 1)
@@ -96,7 +97,7 @@ func (c *LibraryCollector) Collect(ch chan<- prometheus.Metric) {
 			success = false
 		} else if len(latest) > 0 {
 			if t, ok := parseJellyfinTime(latest[0].DateCreated); ok {
-				ch <- prometheus.MustNewConstMetric(c.latestAdded, prometheus.GaugeValue, float64(t.Unix()), folder.Name)
+				ch <- prometheus.MustNewConstMetric(c.latestAdded, prometheus.GaugeValue, float64(t.Unix()), folder.Name, ct)
 			}
 		}
 	}

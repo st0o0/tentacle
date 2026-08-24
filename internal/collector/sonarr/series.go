@@ -16,6 +16,8 @@ type SeriesCollector struct {
 
 	seriesTotal     *prometheus.Desc
 	monitored       *prometheus.Desc
+	seriesByStatus  *prometheus.Desc
+	seasonsTotal    *prometheus.Desc
 	episodesTotal   *prometheus.Desc
 	downloaded      *prometheus.Desc
 	missing         *prometheus.Desc
@@ -35,6 +37,16 @@ func NewSeriesCollector(client *arr.Client, timeout time.Duration, logger *slog.
 		monitored: prometheus.NewDesc(
 			prometheus.BuildFQName(namespace, "series", "monitored_total"),
 			"Total number of monitored series.",
+			nil, nil,
+		),
+		seriesByStatus: prometheus.NewDesc(
+			prometheus.BuildFQName(namespace, "series", "by_status_total"),
+			"Number of series by status.",
+			[]string{"status"}, nil,
+		),
+		seasonsTotal: prometheus.NewDesc(
+			prometheus.BuildFQName(namespace, "seasons", "total"),
+			"Total number of seasons across all series.",
 			nil, nil,
 		),
 		episodesTotal: prometheus.NewDesc(
@@ -63,6 +75,8 @@ func NewSeriesCollector(client *arr.Client, timeout time.Duration, logger *slog.
 func (c *SeriesCollector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- c.seriesTotal
 	ch <- c.monitored
+	ch <- c.seriesByStatus
+	ch <- c.seasonsTotal
 	ch <- c.episodesTotal
 	ch <- c.downloaded
 	ch <- c.missing
@@ -90,7 +104,9 @@ func (c *SeriesCollector) Collect(ch chan<- prometheus.Metric) {
 
 	var monitoredCount int
 	var totalEpisodes, downloadedEpisodes int
+	var totalSeasons int
 	var sizeOnDisk int64
+	statusCounts := make(map[string]int)
 
 	for _, s := range series {
 		if s.Monitored {
@@ -98,11 +114,19 @@ func (c *SeriesCollector) Collect(ch chan<- prometheus.Metric) {
 		}
 		totalEpisodes += s.TotalEpisodeCount
 		downloadedEpisodes += s.EpisodeFileCount
+		totalSeasons += s.SeasonCount
 		sizeOnDisk += s.SizeOnDisk
+		if s.Status != "" {
+			statusCounts[s.Status]++
+		}
 	}
 
 	ch <- prometheus.MustNewConstMetric(c.seriesTotal, prometheus.GaugeValue, float64(len(series)))
 	ch <- prometheus.MustNewConstMetric(c.monitored, prometheus.GaugeValue, float64(monitoredCount))
+	for status, count := range statusCounts {
+		ch <- prometheus.MustNewConstMetric(c.seriesByStatus, prometheus.GaugeValue, float64(count), status)
+	}
+	ch <- prometheus.MustNewConstMetric(c.seasonsTotal, prometheus.GaugeValue, float64(totalSeasons))
 	ch <- prometheus.MustNewConstMetric(c.episodesTotal, prometheus.GaugeValue, float64(totalEpisodes))
 	ch <- prometheus.MustNewConstMetric(c.downloaded, prometheus.GaugeValue, float64(downloadedEpisodes))
 	ch <- prometheus.MustNewConstMetric(c.seriesSizeBytes, prometheus.GaugeValue, float64(sizeOnDisk))

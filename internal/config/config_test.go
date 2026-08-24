@@ -117,3 +117,4 @@ func TestLoad_GlobalDefaults(t *testing.T) {
 		t.Fatalf("LogFormat = %q, want %q", cfg.LogFormat, "json")
 	}
 }
+

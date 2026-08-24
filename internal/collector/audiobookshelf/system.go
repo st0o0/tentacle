@@ -14,7 +14,8 @@ type SystemCollector struct {
 	timeout time.Duration
 	logger  *slog.Logger
 
-	up *prometheus.Desc
+	up   *prometheus.Desc
+	info *prometheus.Desc
 }
 
 func NewSystemCollector(client *audiobookshelf.Client, timeout time.Duration, logger *slog.Logger) *SystemCollector {
@@ -27,11 +28,17 @@ func NewSystemCollector(client *audiobookshelf.Client, timeout time.Duration, lo
 			"Whether Audiobookshelf is reachable.",
 			nil, nil,
 		),
+		info: prometheus.NewDesc(
+			prometheus.BuildFQName(namespace, "system", "info"),
+			"Audiobookshelf system information.",
+			[]string{"version"}, nil,
+		),
 	}
 }
 
 func (c *SystemCollector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- c.up
+	ch <- c.info
 	ch <- scrape.Duration
 	ch <- scrape.Success
 }
@@ -56,4 +63,17 @@ func (c *SystemCollector) Collect(ch chan<- prometheus.Metric) {
 
 	ch <- prometheus.MustNewConstMetric(scrape.Success, prometheus.GaugeValue, 1, "system")
 	ch <- prometheus.MustNewConstMetric(c.up, prometheus.GaugeValue, 1)
+
+	backups, err := c.client.GetBackups(ctx)
+	if err == nil && len(backups.Backups) > 0 {
+		var latest audiobookshelf.Backup
+		for _, b := range backups.Backups {
+			if b.CreatedAt > latest.CreatedAt {
+				latest = b
+			}
+		}
+		if latest.ServerVersion != "" {
+			ch <- prometheus.MustNewConstMetric(c.info, prometheus.GaugeValue, 1, latest.ServerVersion)
+		}
+	}
 }

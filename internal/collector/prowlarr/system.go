@@ -16,6 +16,7 @@ type SystemCollector struct {
 
 	up          *prometheus.Desc
 	info        *prometheus.Desc
+	startTime   *prometheus.Desc
 	healthTotal *prometheus.Desc
 }
 
@@ -34,6 +35,11 @@ func NewSystemCollector(client *arr.Client, timeout time.Duration, logger *slog.
 			"Prowlarr system information.",
 			[]string{"version", "branch", "runtime"}, nil,
 		),
+		startTime: prometheus.NewDesc(
+			prometheus.BuildFQName(namespace, "system", "start_time_seconds"),
+			"Unix timestamp of when Prowlarr started.",
+			nil, nil,
+		),
 		healthTotal: prometheus.NewDesc(
 			prometheus.BuildFQName(namespace, "health", "issues_total"),
 			"Number of health issues by type and source.",
@@ -45,6 +51,7 @@ func NewSystemCollector(client *arr.Client, timeout time.Duration, logger *slog.
 func (c *SystemCollector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- c.up
 	ch <- c.info
+	ch <- c.startTime
 	ch <- c.healthTotal
 	ch <- scrape.Duration
 	ch <- scrape.Success
@@ -76,6 +83,10 @@ func (c *SystemCollector) Collect(ch chan<- prometheus.Metric) {
 		runtime += " " + status.RuntimeVersion
 	}
 	ch <- prometheus.MustNewConstMetric(c.info, prometheus.GaugeValue, 1, status.Version, status.Branch, runtime)
+
+	if t, err := time.Parse(time.RFC3339, status.StartTime); err == nil {
+		ch <- prometheus.MustNewConstMetric(c.startTime, prometheus.GaugeValue, float64(t.Unix()))
+	}
 
 	health, err := c.client.GetHealth(ctx)
 	if err != nil {

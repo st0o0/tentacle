@@ -14,9 +14,10 @@ type IndexersCollector struct {
 	timeout time.Duration
 	logger  *slog.Logger
 
-	indexersTotal        *prometheus.Desc
-	indexersEnabledTotal *prometheus.Desc
-	queriesTotal         *prometheus.Desc
+	indexersTotal          *prometheus.Desc
+	indexersEnabledTotal   *prometheus.Desc
+	indexersByProtocol     *prometheus.Desc
+	queriesTotal           *prometheus.Desc
 	grabsTotal           *prometheus.Desc
 	failedQueriesTotal   *prometheus.Desc
 	failedGrabsTotal     *prometheus.Desc
@@ -37,6 +38,11 @@ func NewIndexersCollector(client *arr.Client, timeout time.Duration, logger *slo
 			prometheus.BuildFQName(namespace, "indexers", "enabled_total"),
 			"Total number of enabled indexers.",
 			nil, nil,
+		),
+		indexersByProtocol: prometheus.NewDesc(
+			prometheus.BuildFQName(namespace, "indexers", "by_protocol_total"),
+			"Number of indexers by protocol.",
+			[]string{"protocol"}, nil,
 		),
 		queriesTotal: prometheus.NewDesc(
 			prometheus.BuildFQName(namespace, "indexer", "queries_total"),
@@ -69,6 +75,7 @@ func NewIndexersCollector(client *arr.Client, timeout time.Duration, logger *slo
 func (c *IndexersCollector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- c.indexersTotal
 	ch <- c.indexersEnabledTotal
+	ch <- c.indexersByProtocol
 	ch <- c.queriesTotal
 	ch <- c.grabsTotal
 	ch <- c.failedQueriesTotal
@@ -96,12 +103,19 @@ func (c *IndexersCollector) Collect(ch chan<- prometheus.Metric) {
 	ch <- prometheus.MustNewConstMetric(c.indexersTotal, prometheus.GaugeValue, float64(len(indexers)))
 
 	enabled := 0
+	protocolCounts := make(map[string]int)
 	for _, idx := range indexers {
 		if idx.Enable {
 			enabled++
 		}
+		if idx.Protocol != "" {
+			protocolCounts[idx.Protocol]++
+		}
 	}
 	ch <- prometheus.MustNewConstMetric(c.indexersEnabledTotal, prometheus.GaugeValue, float64(enabled))
+	for proto, count := range protocolCounts {
+		ch <- prometheus.MustNewConstMetric(c.indexersByProtocol, prometheus.GaugeValue, float64(count), proto)
+	}
 
 	stats, err := c.client.GetIndexerStats(ctx)
 	duration := time.Since(start).Seconds()

@@ -69,6 +69,14 @@ func (c *Client) GetRequestCount(ctx context.Context) (*RequestCount, error) {
 	return &count, nil
 }
 
+func (c *Client) GetIssueCount(ctx context.Context) (*IssueCount, error) {
+	var count IssueCount
+	if err := c.get(ctx, "/issue/count", nil, &count); err != nil {
+		return nil, fmt.Errorf("get issue count: %w", err)
+	}
+	return &count, nil
+}
+
 func (c *Client) GetUsers(ctx context.Context) (*UsersResponse, error) {
 	q := url.Values{}
 	q.Set("take", "100")

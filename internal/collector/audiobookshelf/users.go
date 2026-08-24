@@ -14,9 +14,11 @@ type UsersCollector struct {
 	timeout time.Duration
 	logger  *slog.Logger
 
-	usersTotal   *prometheus.Desc
-	usersOnline  *prometheus.Desc
-	lastSeen     *prometheus.Desc
+	usersTotal       *prometheus.Desc
+	usersActive      *prometheus.Desc
+	usersOnline      *prometheus.Desc
+	lastSeen         *prometheus.Desc
+	listeningTime    *prometheus.Desc
 }
 
 func NewUsersCollector(client *audiobookshelf.Client, timeout time.Duration, logger *slog.Logger) *UsersCollector {
@@ -29,6 +31,11 @@ func NewUsersCollector(client *audiobookshelf.Client, timeout time.Duration, log
 			"Total number of users.",
 			nil, nil,
 		),
+		usersActive: prometheus.NewDesc(
+			prometheus.BuildFQName(namespace, "", "users_active_total"),
+			"Number of active users.",
+			nil, nil,
+		),
 		usersOnline: prometheus.NewDesc(
 			prometheus.BuildFQName(namespace, "", "users_online"),
 			"Number of users currently online.",
@@ -39,13 +46,20 @@ func NewUsersCollector(client *audiobookshelf.Client, timeout time.Duration, log
 			"Last seen timestamp of a user in seconds.",
 			[]string{"user", "type"}, nil,
 		),
+		listeningTime: prometheus.NewDesc(
+			prometheus.BuildFQName(namespace, "user", "listening_time_seconds"),
+			"Total listening time per user in seconds.",
+			[]string{"user"}, nil,
+		),
 	}
 }
 
 func (c *UsersCollector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- c.usersTotal
+	ch <- c.usersActive
 	ch <- c.usersOnline
 	ch <- c.lastSeen
+	ch <- c.listeningTime
 	ch <- scrape.Duration
 	ch <- scrape.Success
 }
@@ -67,11 +81,22 @@ func (c *UsersCollector) Collect(ch chan<- prometheus.Metric) {
 
 	ch <- prometheus.MustNewConstMetric(c.usersTotal, prometheus.GaugeValue, float64(len(users)))
 
+	activeCount := 0
 	for _, user := range users {
+		if user.IsActive {
+			activeCount++
+		}
 		if user.LastSeen != nil {
 			ch <- prometheus.MustNewConstMetric(c.lastSeen, prometheus.GaugeValue, float64(*user.LastSeen)/1000.0, user.Username, user.Type)
 		}
+		stats, err := c.client.GetUserListeningStats(ctx, user.Id)
+		if err != nil {
+			c.logger.Warn("user listening stats failed", "user", user.Username, "err", err)
+			continue
+		}
+		ch <- prometheus.MustNewConstMetric(c.listeningTime, prometheus.GaugeValue, stats.TotalTime, user.Username)
 	}
+	ch <- prometheus.MustNewConstMetric(c.usersActive, prometheus.GaugeValue, float64(activeCount))
 
 	onlineUsers, err := c.client.GetOnlineUsers(ctx)
 	if err != nil {
