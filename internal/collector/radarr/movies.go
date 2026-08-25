@@ -9,21 +9,21 @@ import (
 	"github.com/st0o0/tentacle/internal/client/arr"
 )
 
-type MoviesCollector struct {
+type moviesCollector struct {
 	client  *arr.Client
 	timeout time.Duration
 	logger  *slog.Logger
 
-	total        *prometheus.Desc
-	monitored    *prometheus.Desc
-	byStatus     *prometheus.Desc
-	downloaded   *prometheus.Desc
-	missing      *prometheus.Desc
-	sizeBytes    *prometheus.Desc
+	total      *prometheus.Desc
+	monitored  *prometheus.Desc
+	byStatus   *prometheus.Desc
+	downloaded *prometheus.Desc
+	missing    *prometheus.Desc
+	sizeBytes  *prometheus.Desc
 }
 
-func NewMoviesCollector(client *arr.Client, timeout time.Duration, logger *slog.Logger) *MoviesCollector {
-	return &MoviesCollector{
+func newMoviesCollector(client *arr.Client, timeout time.Duration, logger *slog.Logger) *moviesCollector {
+	return &moviesCollector{
 		client:  client,
 		timeout: timeout,
 		logger:  logger,
@@ -60,35 +60,25 @@ func NewMoviesCollector(client *arr.Client, timeout time.Duration, logger *slog.
 	}
 }
 
-func (c *MoviesCollector) Describe(ch chan<- *prometheus.Desc) {
+func (c *moviesCollector) Name() string { return "movies" }
+
+func (c *moviesCollector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- c.total
 	ch <- c.monitored
 	ch <- c.byStatus
 	ch <- c.downloaded
 	ch <- c.missing
 	ch <- c.sizeBytes
-	ch <- scrape.Duration
-	ch <- scrape.Success
 }
 
-func (c *MoviesCollector) Collect(ch chan<- prometheus.Metric) {
-	start := time.Now()
-
+func (c *moviesCollector) Update(ch chan<- prometheus.Metric) error {
 	ctx, cancel := context.WithTimeout(context.Background(), c.timeout)
 	defer cancel()
 
 	movies, err := c.client.GetMovies(ctx)
-	duration := time.Since(start).Seconds()
-
-	ch <- prometheus.MustNewConstMetric(scrape.Duration, prometheus.GaugeValue, duration, "movies")
-
 	if err != nil {
-		c.logger.Error("movies collector failed", "err", err)
-		ch <- prometheus.MustNewConstMetric(scrape.Success, prometheus.GaugeValue, 0, "movies")
-		return
+		return err
 	}
-
-	ch <- prometheus.MustNewConstMetric(scrape.Success, prometheus.GaugeValue, 1, "movies")
 
 	var monitoredCount, downloadedCount int
 	var totalSize int64
@@ -116,9 +106,10 @@ func (c *MoviesCollector) Collect(ch chan<- prometheus.Metric) {
 
 	wanted, err := c.client.GetWantedMissingMovies(ctx)
 	if err != nil {
-		c.logger.Error("wanted missing movies failed", "err", err)
-		return
+		return err
 	}
 
 	ch <- prometheus.MustNewConstMetric(c.missing, prometheus.GaugeValue, float64(wanted.TotalRecords))
+
+	return nil
 }

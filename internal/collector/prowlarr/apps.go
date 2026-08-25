@@ -9,7 +9,7 @@ import (
 	"github.com/st0o0/tentacle/internal/client/arr"
 )
 
-type AppsCollector struct {
+type appsCollector struct {
 	client  *arr.Client
 	timeout time.Duration
 	logger  *slog.Logger
@@ -19,8 +19,8 @@ type AppsCollector struct {
 	indexerDisabled *prometheus.Desc
 }
 
-func NewAppsCollector(client *arr.Client, timeout time.Duration, logger *slog.Logger) *AppsCollector {
-	return &AppsCollector{
+func newAppsCollector(client *arr.Client, timeout time.Duration, logger *slog.Logger) *appsCollector {
+	return &appsCollector{
 		client:  client,
 		timeout: timeout,
 		logger:  logger,
@@ -42,25 +42,23 @@ func NewAppsCollector(client *arr.Client, timeout time.Duration, logger *slog.Lo
 	}
 }
 
-func (c *AppsCollector) Describe(ch chan<- *prometheus.Desc) {
+func (c *appsCollector) Name() string { return "apps" }
+
+func (c *appsCollector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- c.appsTotal
 	ch <- c.appInfo
 	ch <- c.indexerDisabled
-	ch <- scrape.Duration
-	ch <- scrape.Success
 }
 
-func (c *AppsCollector) Collect(ch chan<- prometheus.Metric) {
-	start := time.Now()
-	success := true
-
+func (c *appsCollector) Update(ch chan<- prometheus.Metric) error {
 	ctx, cancel := context.WithTimeout(context.Background(), c.timeout)
 	defer cancel()
 
+	var firstErr error
+
 	apps, err := c.client.GetApplications(ctx)
 	if err != nil {
-		c.logger.Error("applications fetch failed", "err", err)
-		success = false
+		firstErr = err
 	} else {
 		ch <- prometheus.MustNewConstMetric(c.appsTotal, prometheus.GaugeValue, float64(len(apps)))
 		for _, app := range apps {
@@ -70,8 +68,9 @@ func (c *AppsCollector) Collect(ch chan<- prometheus.Metric) {
 
 	indexers, err := c.client.GetIndexers(ctx)
 	if err != nil {
-		c.logger.Error("indexers fetch for status failed", "err", err)
-		success = false
+		if firstErr == nil {
+			firstErr = err
+		}
 	} else {
 		idToName := make(map[int]string)
 		for _, idx := range indexers {
@@ -80,8 +79,9 @@ func (c *AppsCollector) Collect(ch chan<- prometheus.Metric) {
 
 		statuses, err := c.client.GetIndexerStatuses(ctx)
 		if err != nil {
-			c.logger.Error("indexer statuses fetch failed", "err", err)
-			success = false
+			if firstErr == nil {
+				firstErr = err
+			}
 		} else {
 			now := time.Now()
 			for _, s := range statuses {
@@ -98,10 +98,5 @@ func (c *AppsCollector) Collect(ch chan<- prometheus.Metric) {
 		}
 	}
 
-	successVal := 1.0
-	if !success {
-		successVal = 0
-	}
-	ch <- prometheus.MustNewConstMetric(scrape.Duration, prometheus.GaugeValue, time.Since(start).Seconds(), "apps")
-	ch <- prometheus.MustNewConstMetric(scrape.Success, prometheus.GaugeValue, successVal, "apps")
+	return firstErr
 }

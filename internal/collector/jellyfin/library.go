@@ -15,7 +15,7 @@ var itemTypes = []string{
 	"Book",
 }
 
-type LibraryCollector struct {
+type libraryCollector struct {
 	client  *jellyfin.Client
 	timeout time.Duration
 	logger  *slog.Logger
@@ -25,8 +25,8 @@ type LibraryCollector struct {
 	latestAdded *prometheus.Desc
 }
 
-func NewLibraryCollector(client *jellyfin.Client, timeout time.Duration, logger *slog.Logger) *LibraryCollector {
-	return &LibraryCollector{
+func newLibraryCollector(client *jellyfin.Client, timeout time.Duration, logger *slog.Logger) *libraryCollector {
+	return &libraryCollector{
 		client:  client,
 		timeout: timeout,
 		logger:  logger,
@@ -48,27 +48,21 @@ func NewLibraryCollector(client *jellyfin.Client, timeout time.Duration, logger 
 	}
 }
 
-func (c *LibraryCollector) Describe(ch chan<- *prometheus.Desc) {
+func (c *libraryCollector) Name() string { return "library" }
+
+func (c *libraryCollector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- c.itemsTotal
 	ch <- c.sizeBytes
 	ch <- c.latestAdded
-	ch <- scrape.Duration
-	ch <- scrape.Success
 }
 
-func (c *LibraryCollector) Collect(ch chan<- prometheus.Metric) {
-	start := time.Now()
-	success := true
-
+func (c *libraryCollector) Update(ch chan<- prometheus.Metric) error {
 	ctx, cancel := context.WithTimeout(context.Background(), c.timeout)
 	defer cancel()
 
 	folders, err := c.client.GetVirtualFolders(ctx)
 	if err != nil {
-		c.logger.Error("library collector failed", "err", err)
-		ch <- prometheus.MustNewConstMetric(scrape.Duration, prometheus.GaugeValue, time.Since(start).Seconds(), "library")
-		ch <- prometheus.MustNewConstMetric(scrape.Success, prometheus.GaugeValue, 0, "library")
-		return
+		return err
 	}
 
 	for _, folder := range folders {
@@ -77,7 +71,6 @@ func (c *LibraryCollector) Collect(ch chan<- prometheus.Metric) {
 			resp, err := c.client.GetItems(ctx, folder.ItemId, itemType, "", 0, 0)
 			if err != nil {
 				c.logger.Warn("failed to get item count", "library", folder.Name, "type", itemType, "err", err)
-				success = false
 				continue
 			}
 			ch <- prometheus.MustNewConstMetric(c.itemsTotal, prometheus.GaugeValue, float64(resp.TotalRecordCount), itemType, folder.Name, ct)
@@ -86,7 +79,6 @@ func (c *LibraryCollector) Collect(ch chan<- prometheus.Metric) {
 		size, err := c.librarySize(ctx, folder.ItemId)
 		if err != nil {
 			c.logger.Warn("failed to get library size", "library", folder.Name, "err", err)
-			success = false
 		} else {
 			ch <- prometheus.MustNewConstMetric(c.sizeBytes, prometheus.GaugeValue, float64(size), folder.Name, ct)
 		}
@@ -94,7 +86,6 @@ func (c *LibraryCollector) Collect(ch chan<- prometheus.Metric) {
 		latest, err := c.client.GetLatestItems(ctx, folder.ItemId, 1)
 		if err != nil {
 			c.logger.Warn("failed to get latest items", "library", folder.Name, "err", err)
-			success = false
 		} else if len(latest) > 0 {
 			if t, ok := parseJellyfinTime(latest[0].DateCreated); ok {
 				ch <- prometheus.MustNewConstMetric(c.latestAdded, prometheus.GaugeValue, float64(t.Unix()), folder.Name, ct)
@@ -102,15 +93,10 @@ func (c *LibraryCollector) Collect(ch chan<- prometheus.Metric) {
 		}
 	}
 
-	successVal := 1.0
-	if !success {
-		successVal = 0
-	}
-	ch <- prometheus.MustNewConstMetric(scrape.Duration, prometheus.GaugeValue, time.Since(start).Seconds(), "library")
-	ch <- prometheus.MustNewConstMetric(scrape.Success, prometheus.GaugeValue, successVal, "library")
+	return nil
 }
 
-func (c *LibraryCollector) librarySize(ctx context.Context, parentID string) (int64, error) {
+func (c *libraryCollector) librarySize(ctx context.Context, parentID string) (int64, error) {
 	const batchSize = 500
 	var total int64
 	startIndex := 0

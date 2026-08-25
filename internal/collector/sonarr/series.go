@@ -9,7 +9,7 @@ import (
 	"github.com/st0o0/tentacle/internal/client/arr"
 )
 
-type SeriesCollector struct {
+type seriesCollector struct {
 	client  *arr.Client
 	timeout time.Duration
 	logger  *slog.Logger
@@ -24,8 +24,8 @@ type SeriesCollector struct {
 	seriesSizeBytes *prometheus.Desc
 }
 
-func NewSeriesCollector(client *arr.Client, timeout time.Duration, logger *slog.Logger) *SeriesCollector {
-	return &SeriesCollector{
+func newSeriesCollector(client *arr.Client, timeout time.Duration, logger *slog.Logger) *seriesCollector {
+	return &seriesCollector{
 		client:  client,
 		timeout: timeout,
 		logger:  logger,
@@ -72,7 +72,9 @@ func NewSeriesCollector(client *arr.Client, timeout time.Duration, logger *slog.
 	}
 }
 
-func (c *SeriesCollector) Describe(ch chan<- *prometheus.Desc) {
+func (c *seriesCollector) Name() string { return "series" }
+
+func (c *seriesCollector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- c.seriesTotal
 	ch <- c.monitored
 	ch <- c.seriesByStatus
@@ -81,25 +83,15 @@ func (c *SeriesCollector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- c.downloaded
 	ch <- c.missing
 	ch <- c.seriesSizeBytes
-	ch <- scrape.Duration
-	ch <- scrape.Success
 }
 
-func (c *SeriesCollector) Collect(ch chan<- prometheus.Metric) {
-	start := time.Now()
-
+func (c *seriesCollector) Update(ch chan<- prometheus.Metric) error {
 	ctx, cancel := context.WithTimeout(context.Background(), c.timeout)
 	defer cancel()
 
 	series, err := c.client.GetSeries(ctx)
-	duration := time.Since(start).Seconds()
-
-	ch <- prometheus.MustNewConstMetric(scrape.Duration, prometheus.GaugeValue, duration, "series")
-
 	if err != nil {
-		c.logger.Error("series collector failed", "err", err)
-		ch <- prometheus.MustNewConstMetric(scrape.Success, prometheus.GaugeValue, 0, "series")
-		return
+		return err
 	}
 
 	var monitoredCount int
@@ -133,11 +125,10 @@ func (c *SeriesCollector) Collect(ch chan<- prometheus.Metric) {
 
 	wanted, err := c.client.GetWantedMissing(ctx)
 	if err != nil {
-		c.logger.Error("wanted missing failed", "err", err)
-		ch <- prometheus.MustNewConstMetric(scrape.Success, prometheus.GaugeValue, 0, "series")
-		return
+		return err
 	}
 
 	ch <- prometheus.MustNewConstMetric(c.missing, prometheus.GaugeValue, float64(wanted.TotalRecords))
-	ch <- prometheus.MustNewConstMetric(scrape.Success, prometheus.GaugeValue, 1, "series")
+
+	return nil
 }

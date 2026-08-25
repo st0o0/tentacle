@@ -9,7 +9,7 @@ import (
 	"github.com/st0o0/tentacle/internal/client/seerr"
 )
 
-type RequestsCollector struct {
+type requestsCollector struct {
 	client  *seerr.Client
 	timeout time.Duration
 	logger  *slog.Logger
@@ -19,8 +19,8 @@ type RequestsCollector struct {
 	byStatus *prometheus.Desc
 }
 
-func NewRequestsCollector(client *seerr.Client, timeout time.Duration, logger *slog.Logger) *RequestsCollector {
-	return &RequestsCollector{
+func newRequestsCollector(client *seerr.Client, timeout time.Duration, logger *slog.Logger) *requestsCollector {
+	return &requestsCollector{
 		client:  client,
 		timeout: timeout,
 		logger:  logger,
@@ -42,32 +42,25 @@ func NewRequestsCollector(client *seerr.Client, timeout time.Duration, logger *s
 	}
 }
 
-func (c *RequestsCollector) Describe(ch chan<- *prometheus.Desc) {
+func (c *requestsCollector) Name() string {
+	return "requests"
+}
+
+func (c *requestsCollector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- c.total
 	ch <- c.byType
 	ch <- c.byStatus
-	ch <- scrape.Duration
-	ch <- scrape.Success
 }
 
-func (c *RequestsCollector) Collect(ch chan<- prometheus.Metric) {
-	start := time.Now()
-
+func (c *requestsCollector) Update(ch chan<- prometheus.Metric) error {
 	ctx, cancel := context.WithTimeout(context.Background(), c.timeout)
 	defer cancel()
 
 	count, err := c.client.GetRequestCount(ctx)
-	duration := time.Since(start).Seconds()
-
-	ch <- prometheus.MustNewConstMetric(scrape.Duration, prometheus.GaugeValue, duration, "requests")
-
 	if err != nil {
-		c.logger.Error("requests collector failed", "err", err)
-		ch <- prometheus.MustNewConstMetric(scrape.Success, prometheus.GaugeValue, 0, "requests")
-		return
+		return err
 	}
 
-	ch <- prometheus.MustNewConstMetric(scrape.Success, prometheus.GaugeValue, 1, "requests")
 	ch <- prometheus.MustNewConstMetric(c.total, prometheus.GaugeValue, float64(count.Total))
 	ch <- prometheus.MustNewConstMetric(c.byType, prometheus.GaugeValue, float64(count.Movie), "movie")
 	ch <- prometheus.MustNewConstMetric(c.byType, prometheus.GaugeValue, float64(count.TV), "tv")
@@ -75,4 +68,6 @@ func (c *RequestsCollector) Collect(ch chan<- prometheus.Metric) {
 	ch <- prometheus.MustNewConstMetric(c.byStatus, prometheus.GaugeValue, float64(count.Approved), "approved")
 	ch <- prometheus.MustNewConstMetric(c.byStatus, prometheus.GaugeValue, float64(count.Available), "available")
 	ch <- prometheus.MustNewConstMetric(c.byStatus, prometheus.GaugeValue, float64(count.Declined), "declined")
+
+	return nil
 }

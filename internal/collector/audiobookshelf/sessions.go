@@ -9,7 +9,7 @@ import (
 	"github.com/st0o0/tentacle/internal/client/audiobookshelf"
 )
 
-type SessionsCollector struct {
+type sessionsCollector struct {
 	client  *audiobookshelf.Client
 	timeout time.Duration
 	logger  *slog.Logger
@@ -17,8 +17,8 @@ type SessionsCollector struct {
 	sessionsTotal *prometheus.Desc
 }
 
-func NewSessionsCollector(client *audiobookshelf.Client, timeout time.Duration, logger *slog.Logger) *SessionsCollector {
-	return &SessionsCollector{
+func newSessionsCollector(client *audiobookshelf.Client, timeout time.Duration, logger *slog.Logger) *sessionsCollector {
+	return &sessionsCollector{
 		client:  client,
 		timeout: timeout,
 		logger:  logger,
@@ -30,29 +30,24 @@ func NewSessionsCollector(client *audiobookshelf.Client, timeout time.Duration, 
 	}
 }
 
-func (c *SessionsCollector) Describe(ch chan<- *prometheus.Desc) {
-	ch <- c.sessionsTotal
-	ch <- scrape.Duration
-	ch <- scrape.Success
+func (c *sessionsCollector) Name() string {
+	return "sessions"
 }
 
-func (c *SessionsCollector) Collect(ch chan<- prometheus.Metric) {
-	start := time.Now()
+func (c *sessionsCollector) Describe(ch chan<- *prometheus.Desc) {
+	ch <- c.sessionsTotal
+}
 
+func (c *sessionsCollector) Update(ch chan<- prometheus.Metric) error {
 	ctx, cancel := context.WithTimeout(context.Background(), c.timeout)
 	defer cancel()
 
 	sessions, err := c.client.GetSessions(ctx)
-	duration := time.Since(start).Seconds()
-
-	ch <- prometheus.MustNewConstMetric(scrape.Duration, prometheus.GaugeValue, duration, "sessions")
-
 	if err != nil {
-		c.logger.Error("sessions collector failed", "err", err)
-		ch <- prometheus.MustNewConstMetric(scrape.Success, prometheus.GaugeValue, 0, "sessions")
-		return
+		return err
 	}
 
-	ch <- prometheus.MustNewConstMetric(scrape.Success, prometheus.GaugeValue, 1, "sessions")
 	ch <- prometheus.MustNewConstMetric(c.sessionsTotal, prometheus.GaugeValue, float64(sessions.Total))
+
+	return nil
 }

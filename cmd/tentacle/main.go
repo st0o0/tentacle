@@ -61,87 +61,49 @@ func main() {
 
 	if cfg.Jellyfin != nil {
 		client := jellyfin.NewClient(cfg.Jellyfin.Address, cfg.Jellyfin.Token, httpClient)
-		reg.MustRegister(
-			jellyfincollector.NewSystemCollector(client, cfg.ScrapeTimeout, logger),
-			jellyfincollector.NewUsersCollector(client, cfg.ScrapeTimeout, logger),
-			jellyfincollector.NewSessionsCollector(client, cfg.ScrapeTimeout, logger),
-			jellyfincollector.NewLibraryCollector(client, cfg.ScrapeTimeout, logger),
-			jellyfincollector.NewTasksCollector(client, cfg.ScrapeTimeout, logger),
-			jellyfincollector.NewActivityCollector(client, cfg.ScrapeTimeout, logger),
-			jellyfincollector.NewPluginsCollector(client, cfg.ScrapeTimeout, logger),
-			jellyfincollector.NewDevicesCollector(client, cfg.ScrapeTimeout, logger),
-			jellyfincollector.NewCountsCollector(client, cfg.ScrapeTimeout, logger),
-		)
 
+		var opts []jellyfincollector.Option
 		probeCtx, probeCancel := context.WithTimeout(context.Background(), cfg.ScrapeTimeout)
 		_, probeErr := client.GetPlaybackActivity(probeCtx, 1)
 		probeCancel()
 		if probeErr == nil {
-			reg.MustRegister(jellyfincollector.NewPlaybackCollector(client, cfg.ScrapeTimeout, logger))
+			opts = append(opts, jellyfincollector.WithPlayback(true))
 			logger.Info("playback collector enabled (PlaybackReporting plugin detected)")
 		} else {
 			logger.Info("playback collector disabled (PlaybackReporting plugin not found)")
 		}
 
+		reg.MustRegister(jellyfincollector.NewCollector(client, cfg.ScrapeTimeout, logger, opts...))
 		logger.Info("registered jellyfin collectors", "addr", cfg.Jellyfin.Address)
 	}
 
 	if cfg.Sonarr != nil {
 		client := arr.NewClient(cfg.Sonarr.Address, cfg.Sonarr.Token, httpClient)
-		reg.MustRegister(
-			sonarrcollector.NewSystemCollector(client, cfg.ScrapeTimeout, logger),
-			sonarrcollector.NewSeriesCollector(client, cfg.ScrapeTimeout, logger),
-			sonarrcollector.NewQueueCollector(client, cfg.ScrapeTimeout, logger),
-			sonarrcollector.NewDiskCollector(client, cfg.ScrapeTimeout, logger),
-			sonarrcollector.NewCalendarCollector(client, cfg.ScrapeTimeout, logger),
-			sonarrcollector.NewExtrasCollector(client, cfg.ScrapeTimeout, logger),
-		)
+		reg.MustRegister(sonarrcollector.NewCollector(client, cfg.ScrapeTimeout, logger))
 		logger.Info("registered sonarr collectors", "addr", cfg.Sonarr.Address)
 	}
 
 	if cfg.Radarr != nil {
 		client := arr.NewClient(cfg.Radarr.Address, cfg.Radarr.Token, httpClient)
-		reg.MustRegister(
-			radarrcollector.NewSystemCollector(client, cfg.ScrapeTimeout, logger),
-			radarrcollector.NewMoviesCollector(client, cfg.ScrapeTimeout, logger),
-			radarrcollector.NewQueueCollector(client, cfg.ScrapeTimeout, logger),
-			radarrcollector.NewDiskCollector(client, cfg.ScrapeTimeout, logger),
-			radarrcollector.NewCalendarCollector(client, cfg.ScrapeTimeout, logger),
-			radarrcollector.NewExtrasCollector(client, cfg.ScrapeTimeout, logger),
-		)
+		reg.MustRegister(radarrcollector.NewCollector(client, cfg.ScrapeTimeout, logger))
 		logger.Info("registered radarr collectors", "addr", cfg.Radarr.Address)
 	}
 
 	if cfg.Prowlarr != nil {
 		client := arr.NewClient(cfg.Prowlarr.Address, cfg.Prowlarr.Token, httpClient)
-		reg.MustRegister(
-			prowlarrcollector.NewSystemCollector(client, cfg.ScrapeTimeout, logger),
-			prowlarrcollector.NewIndexersCollector(client, cfg.ScrapeTimeout, logger),
-			prowlarrcollector.NewAppsCollector(client, cfg.ScrapeTimeout, logger),
-		)
+		reg.MustRegister(prowlarrcollector.NewCollector(client, cfg.ScrapeTimeout, logger))
 		logger.Info("registered prowlarr collectors", "addr", cfg.Prowlarr.Address)
 	}
 
 	if cfg.Audiobookshelf != nil {
 		client := audiobookshelf.NewClient(cfg.Audiobookshelf.Address, cfg.Audiobookshelf.Token, httpClient)
-		reg.MustRegister(
-			abscollector.NewSystemCollector(client, cfg.ScrapeTimeout, logger),
-			abscollector.NewLibrariesCollector(client, cfg.ScrapeTimeout, logger),
-			abscollector.NewUsersCollector(client, cfg.ScrapeTimeout, logger),
-			abscollector.NewSessionsCollector(client, cfg.ScrapeTimeout, logger),
-			abscollector.NewBackupsCollector(client, cfg.ScrapeTimeout, logger),
-		)
+		reg.MustRegister(abscollector.NewCollector(client, cfg.ScrapeTimeout, logger))
 		logger.Info("registered audiobookshelf collectors", "addr", cfg.Audiobookshelf.Address)
 	}
 
 	if cfg.Seerr != nil {
 		client := seerr.NewClient(cfg.Seerr.Address, cfg.Seerr.Token, httpClient)
-		reg.MustRegister(
-			seerrcollector.NewSystemCollector(client, cfg.ScrapeTimeout, logger),
-			seerrcollector.NewRequestsCollector(client, cfg.ScrapeTimeout, logger),
-			seerrcollector.NewUsersCollector(client, cfg.ScrapeTimeout, logger),
-			seerrcollector.NewIssuesCollector(client, cfg.ScrapeTimeout, logger),
-		)
+		reg.MustRegister(seerrcollector.NewCollector(client, cfg.ScrapeTimeout, logger))
 		logger.Info("registered seerr collectors", "addr", cfg.Seerr.Address)
 	}
 

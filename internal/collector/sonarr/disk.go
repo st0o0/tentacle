@@ -9,7 +9,7 @@ import (
 	"github.com/st0o0/tentacle/internal/client/arr"
 )
 
-type DiskCollector struct {
+type diskCollector struct {
 	client  *arr.Client
 	timeout time.Duration
 	logger  *slog.Logger
@@ -18,8 +18,8 @@ type DiskCollector struct {
 	freeBytes  *prometheus.Desc
 }
 
-func NewDiskCollector(client *arr.Client, timeout time.Duration, logger *slog.Logger) *DiskCollector {
-	return &DiskCollector{
+func newDiskCollector(client *arr.Client, timeout time.Duration, logger *slog.Logger) *diskCollector {
+	return &diskCollector{
 		client:  client,
 		timeout: timeout,
 		logger:  logger,
@@ -36,34 +36,26 @@ func NewDiskCollector(client *arr.Client, timeout time.Duration, logger *slog.Lo
 	}
 }
 
-func (c *DiskCollector) Describe(ch chan<- *prometheus.Desc) {
+func (c *diskCollector) Name() string { return "disk" }
+
+func (c *diskCollector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- c.totalBytes
 	ch <- c.freeBytes
-	ch <- scrape.Duration
-	ch <- scrape.Success
 }
 
-func (c *DiskCollector) Collect(ch chan<- prometheus.Metric) {
-	start := time.Now()
-
+func (c *diskCollector) Update(ch chan<- prometheus.Metric) error {
 	ctx, cancel := context.WithTimeout(context.Background(), c.timeout)
 	defer cancel()
 
 	folders, err := c.client.GetRootFolders(ctx)
-	duration := time.Since(start).Seconds()
-
-	ch <- prometheus.MustNewConstMetric(scrape.Duration, prometheus.GaugeValue, duration, "disk")
-
 	if err != nil {
-		c.logger.Error("disk collector failed", "err", err)
-		ch <- prometheus.MustNewConstMetric(scrape.Success, prometheus.GaugeValue, 0, "disk")
-		return
+		return err
 	}
-
-	ch <- prometheus.MustNewConstMetric(scrape.Success, prometheus.GaugeValue, 1, "disk")
 
 	for _, f := range folders {
 		ch <- prometheus.MustNewConstMetric(c.totalBytes, prometheus.GaugeValue, float64(f.TotalSpace), f.Path)
 		ch <- prometheus.MustNewConstMetric(c.freeBytes, prometheus.GaugeValue, float64(f.FreeSpace), f.Path)
 	}
+
+	return nil
 }

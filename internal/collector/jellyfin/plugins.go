@@ -9,7 +9,7 @@ import (
 	"github.com/st0o0/tentacle/internal/client/jellyfin"
 )
 
-type PluginsCollector struct {
+type pluginsCollector struct {
 	client  *jellyfin.Client
 	timeout time.Duration
 	logger  *slog.Logger
@@ -19,8 +19,8 @@ type PluginsCollector struct {
 	updateAvailable *prometheus.Desc
 }
 
-func NewPluginsCollector(client *jellyfin.Client, timeout time.Duration, logger *slog.Logger) *PluginsCollector {
-	return &PluginsCollector{
+func newPluginsCollector(client *jellyfin.Client, timeout time.Duration, logger *slog.Logger) *pluginsCollector {
+	return &pluginsCollector{
 		client:  client,
 		timeout: timeout,
 		logger:  logger,
@@ -42,32 +42,23 @@ func NewPluginsCollector(client *jellyfin.Client, timeout time.Duration, logger 
 	}
 }
 
-func (c *PluginsCollector) Describe(ch chan<- *prometheus.Desc) {
+func (c *pluginsCollector) Name() string { return "plugins" }
+
+func (c *pluginsCollector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- c.total
 	ch <- c.info
 	ch <- c.updateAvailable
-	ch <- scrape.Duration
-	ch <- scrape.Success
 }
 
-func (c *PluginsCollector) Collect(ch chan<- prometheus.Metric) {
-	start := time.Now()
-
+func (c *pluginsCollector) Update(ch chan<- prometheus.Metric) error {
 	ctx, cancel := context.WithTimeout(context.Background(), c.timeout)
 	defer cancel()
 
 	plugins, err := c.client.GetPlugins(ctx)
-	duration := time.Since(start).Seconds()
-
-	ch <- prometheus.MustNewConstMetric(scrape.Duration, prometheus.GaugeValue, duration, "plugins")
-
 	if err != nil {
-		c.logger.Error("plugins collector failed", "err", err)
-		ch <- prometheus.MustNewConstMetric(scrape.Success, prometheus.GaugeValue, 0, "plugins")
-		return
+		return err
 	}
 
-	ch <- prometheus.MustNewConstMetric(scrape.Success, prometheus.GaugeValue, 1, "plugins")
 	ch <- prometheus.MustNewConstMetric(c.total, prometheus.GaugeValue, float64(len(plugins)))
 
 	for _, p := range plugins {
@@ -79,4 +70,5 @@ func (c *PluginsCollector) Collect(ch chan<- prometheus.Metric) {
 		}
 		ch <- prometheus.MustNewConstMetric(c.updateAvailable, prometheus.GaugeValue, update, p.Name)
 	}
+	return nil
 }

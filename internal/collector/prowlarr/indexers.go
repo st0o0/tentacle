@@ -9,23 +9,23 @@ import (
 	"github.com/st0o0/tentacle/internal/client/arr"
 )
 
-type IndexersCollector struct {
+type indexersCollector struct {
 	client  *arr.Client
 	timeout time.Duration
 	logger  *slog.Logger
 
-	indexersTotal          *prometheus.Desc
-	indexersEnabledTotal   *prometheus.Desc
-	indexersByProtocol     *prometheus.Desc
-	queriesTotal           *prometheus.Desc
+	indexersTotal        *prometheus.Desc
+	indexersEnabledTotal *prometheus.Desc
+	indexersByProtocol   *prometheus.Desc
+	queriesTotal         *prometheus.Desc
 	grabsTotal           *prometheus.Desc
 	failedQueriesTotal   *prometheus.Desc
 	failedGrabsTotal     *prometheus.Desc
 	avgResponseSeconds   *prometheus.Desc
 }
 
-func NewIndexersCollector(client *arr.Client, timeout time.Duration, logger *slog.Logger) *IndexersCollector {
-	return &IndexersCollector{
+func newIndexersCollector(client *arr.Client, timeout time.Duration, logger *slog.Logger) *indexersCollector {
+	return &indexersCollector{
 		client:  client,
 		timeout: timeout,
 		logger:  logger,
@@ -72,7 +72,9 @@ func NewIndexersCollector(client *arr.Client, timeout time.Duration, logger *slo
 	}
 }
 
-func (c *IndexersCollector) Describe(ch chan<- *prometheus.Desc) {
+func (c *indexersCollector) Name() string { return "indexers" }
+
+func (c *indexersCollector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- c.indexersTotal
 	ch <- c.indexersEnabledTotal
 	ch <- c.indexersByProtocol
@@ -81,23 +83,15 @@ func (c *IndexersCollector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- c.failedQueriesTotal
 	ch <- c.failedGrabsTotal
 	ch <- c.avgResponseSeconds
-	ch <- scrape.Duration
-	ch <- scrape.Success
 }
 
-func (c *IndexersCollector) Collect(ch chan<- prometheus.Metric) {
-	start := time.Now()
-
+func (c *indexersCollector) Update(ch chan<- prometheus.Metric) error {
 	ctx, cancel := context.WithTimeout(context.Background(), c.timeout)
 	defer cancel()
 
 	indexers, err := c.client.GetIndexers(ctx)
 	if err != nil {
-		duration := time.Since(start).Seconds()
-		ch <- prometheus.MustNewConstMetric(scrape.Duration, prometheus.GaugeValue, duration, "indexers")
-		c.logger.Error("indexers collector failed", "err", err)
-		ch <- prometheus.MustNewConstMetric(scrape.Success, prometheus.GaugeValue, 0, "indexers")
-		return
+		return err
 	}
 
 	ch <- prometheus.MustNewConstMetric(c.indexersTotal, prometheus.GaugeValue, float64(len(indexers)))
@@ -118,16 +112,9 @@ func (c *IndexersCollector) Collect(ch chan<- prometheus.Metric) {
 	}
 
 	stats, err := c.client.GetIndexerStats(ctx)
-	duration := time.Since(start).Seconds()
-	ch <- prometheus.MustNewConstMetric(scrape.Duration, prometheus.GaugeValue, duration, "indexers")
-
 	if err != nil {
-		c.logger.Error("indexer stats collector failed", "err", err)
-		ch <- prometheus.MustNewConstMetric(scrape.Success, prometheus.GaugeValue, 0, "indexers")
-		return
+		return err
 	}
-
-	ch <- prometheus.MustNewConstMetric(scrape.Success, prometheus.GaugeValue, 1, "indexers")
 
 	for _, s := range stats.Indexers {
 		ch <- prometheus.MustNewConstMetric(c.queriesTotal, prometheus.GaugeValue, float64(s.NumberOfQueries), s.IndexerName)
@@ -136,4 +123,6 @@ func (c *IndexersCollector) Collect(ch chan<- prometheus.Metric) {
 		ch <- prometheus.MustNewConstMetric(c.failedGrabsTotal, prometheus.GaugeValue, float64(s.NumberOfFailedGrabs), s.IndexerName)
 		ch <- prometheus.MustNewConstMetric(c.avgResponseSeconds, prometheus.GaugeValue, float64(s.AverageResponseTime)/1000.0, s.IndexerName)
 	}
+
+	return nil
 }

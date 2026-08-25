@@ -11,6 +11,7 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/st0o0/tentacle/internal/client/seerr"
+	"github.com/st0o0/tentacle/internal/collector"
 )
 
 func newTestServer(t *testing.T) *httptest.Server {
@@ -80,7 +81,8 @@ func newClient(srv *httptest.Server) *seerr.Client {
 
 func TestSystemCollector(t *testing.T) {
 	srv := newTestServer(t)
-	c := NewSystemCollector(newClient(srv), 5*time.Second, slog.Default())
+	sc := newSystemCollector(newClient(srv), 5*time.Second, slog.Default())
+	c := collector.NewServiceCollector(namespace, slog.Default(), sc)
 
 	expected := `
 		# HELP seerr_up Whether Seerr is reachable.
@@ -103,7 +105,8 @@ func TestSystemCollector(t *testing.T) {
 
 func TestRequestsCollector(t *testing.T) {
 	srv := newTestServer(t)
-	c := NewRequestsCollector(newClient(srv), 5*time.Second, slog.Default())
+	sc := newRequestsCollector(newClient(srv), 5*time.Second, slog.Default())
+	c := collector.NewServiceCollector(namespace, slog.Default(), sc)
 
 	expected := `
 		# HELP seerr_requests_total Total number of Seerr requests.
@@ -139,7 +142,8 @@ func TestRequestsCollector(t *testing.T) {
 
 func TestUsersCollector(t *testing.T) {
 	srv := newTestServer(t)
-	c := NewUsersCollector(newClient(srv), 5*time.Second, slog.Default())
+	sc := newUsersCollector(newClient(srv), 5*time.Second, slog.Default())
+	c := collector.NewServiceCollector(namespace, slog.Default(), sc)
 
 	expected := `
 		# HELP seerr_users_total Total number of Seerr users.
@@ -153,7 +157,8 @@ func TestUsersCollector(t *testing.T) {
 
 func TestIssuesCollector(t *testing.T) {
 	srv := newTestServer(t)
-	c := NewIssuesCollector(newClient(srv), 5*time.Second, slog.Default())
+	sc := newIssuesCollector(newClient(srv), 5*time.Second, slog.Default())
+	c := collector.NewServiceCollector(namespace, slog.Default(), sc)
 
 	expected := `
 		# HELP seerr_issues_total Total number of reported issues.

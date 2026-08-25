@@ -9,20 +9,20 @@ import (
 	"github.com/st0o0/tentacle/internal/client/audiobookshelf"
 )
 
-type UsersCollector struct {
+type usersCollector struct {
 	client  *audiobookshelf.Client
 	timeout time.Duration
 	logger  *slog.Logger
 
-	usersTotal       *prometheus.Desc
-	usersActive      *prometheus.Desc
-	usersOnline      *prometheus.Desc
-	lastSeen         *prometheus.Desc
-	listeningTime    *prometheus.Desc
+	usersTotal    *prometheus.Desc
+	usersActive   *prometheus.Desc
+	usersOnline   *prometheus.Desc
+	lastSeen      *prometheus.Desc
+	listeningTime *prometheus.Desc
 }
 
-func NewUsersCollector(client *audiobookshelf.Client, timeout time.Duration, logger *slog.Logger) *UsersCollector {
-	return &UsersCollector{
+func newUsersCollector(client *audiobookshelf.Client, timeout time.Duration, logger *slog.Logger) *usersCollector {
+	return &usersCollector{
 		client:  client,
 		timeout: timeout,
 		logger:  logger,
@@ -54,29 +54,25 @@ func NewUsersCollector(client *audiobookshelf.Client, timeout time.Duration, log
 	}
 }
 
-func (c *UsersCollector) Describe(ch chan<- *prometheus.Desc) {
+func (c *usersCollector) Name() string {
+	return "users"
+}
+
+func (c *usersCollector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- c.usersTotal
 	ch <- c.usersActive
 	ch <- c.usersOnline
 	ch <- c.lastSeen
 	ch <- c.listeningTime
-	ch <- scrape.Duration
-	ch <- scrape.Success
 }
 
-func (c *UsersCollector) Collect(ch chan<- prometheus.Metric) {
-	start := time.Now()
-
+func (c *usersCollector) Update(ch chan<- prometheus.Metric) error {
 	ctx, cancel := context.WithTimeout(context.Background(), c.timeout)
 	defer cancel()
 
 	users, err := c.client.GetUsers(ctx)
 	if err != nil {
-		duration := time.Since(start).Seconds()
-		c.logger.Error("users collector failed", "err", err)
-		ch <- prometheus.MustNewConstMetric(scrape.Duration, prometheus.GaugeValue, duration, "users")
-		ch <- prometheus.MustNewConstMetric(scrape.Success, prometheus.GaugeValue, 0, "users")
-		return
+		return err
 	}
 
 	ch <- prometheus.MustNewConstMetric(c.usersTotal, prometheus.GaugeValue, float64(len(users)))
@@ -100,16 +96,10 @@ func (c *UsersCollector) Collect(ch chan<- prometheus.Metric) {
 
 	onlineUsers, err := c.client.GetOnlineUsers(ctx)
 	if err != nil {
-		c.logger.Error("online users failed", "err", err)
-		duration := time.Since(start).Seconds()
-		ch <- prometheus.MustNewConstMetric(scrape.Duration, prometheus.GaugeValue, duration, "users")
-		ch <- prometheus.MustNewConstMetric(scrape.Success, prometheus.GaugeValue, 0, "users")
-		return
+		return err
 	}
 
 	ch <- prometheus.MustNewConstMetric(c.usersOnline, prometheus.GaugeValue, float64(len(onlineUsers)))
 
-	duration := time.Since(start).Seconds()
-	ch <- prometheus.MustNewConstMetric(scrape.Duration, prometheus.GaugeValue, duration, "users")
-	ch <- prometheus.MustNewConstMetric(scrape.Success, prometheus.GaugeValue, 1, "users")
+	return nil
 }

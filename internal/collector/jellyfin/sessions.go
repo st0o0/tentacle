@@ -11,7 +11,7 @@ import (
 	"github.com/st0o0/tentacle/internal/client/jellyfin"
 )
 
-type SessionsCollector struct {
+type sessionsCollector struct {
 	client  *jellyfin.Client
 	timeout time.Duration
 	logger  *slog.Logger
@@ -31,8 +31,8 @@ type SessionsCollector struct {
 	transcodeCount *prometheus.Desc
 }
 
-func NewSessionsCollector(client *jellyfin.Client, timeout time.Duration, logger *slog.Logger) *SessionsCollector {
-	return &SessionsCollector{
+func newSessionsCollector(client *jellyfin.Client, timeout time.Duration, logger *slog.Logger) *sessionsCollector {
+	return &sessionsCollector{
 		client:  client,
 		timeout: timeout,
 		logger:  logger,
@@ -104,7 +104,9 @@ func NewSessionsCollector(client *jellyfin.Client, timeout time.Duration, logger
 	}
 }
 
-func (c *SessionsCollector) Describe(ch chan<- *prometheus.Desc) {
+func (c *sessionsCollector) Name() string { return "sessions" }
+
+func (c *sessionsCollector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- c.activeTotal
 	ch <- c.streamingTotal
 	ch <- c.transcoding
@@ -118,28 +120,17 @@ func (c *SessionsCollector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- c.bandwidthTotal
 	ch <- c.directPlay
 	ch <- c.transcodeCount
-	ch <- scrape.Duration
-	ch <- scrape.Success
 }
 
-func (c *SessionsCollector) Collect(ch chan<- prometheus.Metric) {
-	start := time.Now()
-
+func (c *sessionsCollector) Update(ch chan<- prometheus.Metric) error {
 	ctx, cancel := context.WithTimeout(context.Background(), c.timeout)
 	defer cancel()
 
 	sessions, err := c.client.GetSessions(ctx)
-	duration := time.Since(start).Seconds()
-
-	ch <- prometheus.MustNewConstMetric(scrape.Duration, prometheus.GaugeValue, duration, "sessions")
-
 	if err != nil {
-		c.logger.Error("sessions collector failed", "err", err)
-		ch <- prometheus.MustNewConstMetric(scrape.Success, prometheus.GaugeValue, 0, "sessions")
-		return
+		return err
 	}
 
-	ch <- prometheus.MustNewConstMetric(scrape.Success, prometheus.GaugeValue, 1, "sessions")
 	ch <- prometheus.MustNewConstMetric(c.activeTotal, prometheus.GaugeValue, float64(len(sessions)))
 
 	type streamKey struct{ user, playMethod string }
@@ -232,4 +223,5 @@ func (c *SessionsCollector) Collect(ch chan<- prometheus.Metric) {
 	ch <- prometheus.MustNewConstMetric(c.bandwidthTotal, prometheus.GaugeValue, totalBandwidth)
 	ch <- prometheus.MustNewConstMetric(c.directPlay, prometheus.GaugeValue, directPlayCount)
 	ch <- prometheus.MustNewConstMetric(c.transcodeCount, prometheus.GaugeValue, transcodeCountVal)
+	return nil
 }

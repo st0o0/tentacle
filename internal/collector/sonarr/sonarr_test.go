@@ -11,7 +11,9 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/testutil"
+	dto "github.com/prometheus/client_model/go"
 	"github.com/st0o0/tentacle/internal/client/arr"
+	"github.com/st0o0/tentacle/internal/collector"
 )
 
 // newTestServer creates an httptest.Server that routes API requests to canned JSON responses.
@@ -37,6 +39,26 @@ func newClient(serverURL string) *arr.Client {
 	return arr.NewClient(serverURL, "test-api-key", http.DefaultClient)
 }
 
+func wrapSub(sc collector.SubCollector) *collector.ServiceCollector {
+	return collector.NewServiceCollector(namespace, slog.Default(), sc)
+}
+
+func collectSub(t *testing.T, sc collector.SubCollector) map[string]*dto.MetricFamily {
+	t.Helper()
+	svc := collector.NewServiceCollector(namespace, slog.Default(), sc)
+	reg := prometheus.NewPedanticRegistry()
+	reg.MustRegister(svc)
+	families, err := reg.Gather()
+	if err != nil {
+		t.Fatalf("gather failed: %v", err)
+	}
+	result := make(map[string]*dto.MetricFamily, len(families))
+	for _, mf := range families {
+		result[mf.GetName()] = mf
+	}
+	return result
+}
+
 func TestSystemCollector(t *testing.T) {
 	srv := newTestServer(t, map[string]any{
 		"/api/v3/system/status": arr.SystemStatus{
@@ -52,64 +74,49 @@ func TestSystemCollector(t *testing.T) {
 	})
 	defer srv.Close()
 
-	c := NewSystemCollector(newClient(srv.URL), 5*time.Second, slog.Default())
+	c := newSystemCollector(newClient(srv.URL), 5*time.Second, slog.Default())
 
-	reg := prometheus.NewRegistry()
-	reg.MustRegister(c)
+	families := collectSub(t, c)
 
-	mfs, err := reg.Gather()
-	if err != nil {
-		t.Fatalf("gather failed: %v", err)
+	// sonarr_up
+	if mf, ok := families["sonarr_up"]; !ok {
+		t.Error("metric sonarr_up not found in gathered output")
+	} else if v := mf.GetMetric()[0].GetGauge().GetValue(); v != 1 {
+		t.Errorf("expected sonarr_up=1, got %v", v)
 	}
 
-	found := map[string]bool{
-		"sonarr_up":                           false,
-		"sonarr_system_info":                  false,
-		"sonarr_system_start_time_seconds":    false,
-		"sonarr_health_issues_total":          false,
-	}
-
-	for _, mf := range mfs {
-		name := mf.GetName()
-		switch name {
-		case "sonarr_up":
-			found[name] = true
-			if v := mf.GetMetric()[0].GetGauge().GetValue(); v != 1 {
-				t.Errorf("expected sonarr_up=1, got %v", v)
-			}
-		case "sonarr_system_info":
-			found[name] = true
-			m := mf.GetMetric()[0]
-			labels := map[string]string{}
-			for _, lp := range m.GetLabel() {
-				labels[lp.GetName()] = lp.GetValue()
-			}
-			if labels["version"] != "4.0.0.1" {
-				t.Errorf("expected version=4.0.0.1, got %s", labels["version"])
-			}
-			if labels["branch"] != "main" {
-				t.Errorf("expected branch=main, got %s", labels["branch"])
-			}
-			if labels["runtime"] != "dotnet" {
-				t.Errorf("expected runtime=dotnet, got %s", labels["runtime"])
-			}
-		case "sonarr_system_start_time_seconds":
-			found[name] = true
-			if v := mf.GetMetric()[0].GetGauge().GetValue(); v != 1704067200 {
-				t.Errorf("expected start_time=1704067200, got %v", v)
-			}
-		case "sonarr_health_issues_total":
-			found[name] = true
-			if len(mf.GetMetric()) != 2 {
-				t.Errorf("expected 2 health issue metrics, got %d", len(mf.GetMetric()))
-			}
+	// sonarr_system_info
+	if mf, ok := families["sonarr_system_info"]; !ok {
+		t.Error("metric sonarr_system_info not found in gathered output")
+	} else {
+		m := mf.GetMetric()[0]
+		labels := map[string]string{}
+		for _, lp := range m.GetLabel() {
+			labels[lp.GetName()] = lp.GetValue()
+		}
+		if labels["version"] != "4.0.0.1" {
+			t.Errorf("expected version=4.0.0.1, got %s", labels["version"])
+		}
+		if labels["branch"] != "main" {
+			t.Errorf("expected branch=main, got %s", labels["branch"])
+		}
+		if labels["runtime"] != "dotnet" {
+			t.Errorf("expected runtime=dotnet, got %s", labels["runtime"])
 		}
 	}
 
-	for name, ok := range found {
-		if !ok {
-			t.Errorf("metric %s not found in gathered output", name)
-		}
+	// sonarr_system_start_time_seconds
+	if mf, ok := families["sonarr_system_start_time_seconds"]; !ok {
+		t.Error("metric sonarr_system_start_time_seconds not found in gathered output")
+	} else if v := mf.GetMetric()[0].GetGauge().GetValue(); v != 1704067200 {
+		t.Errorf("expected start_time=1704067200, got %v", v)
+	}
+
+	// sonarr_health_issues_total
+	if mf, ok := families["sonarr_health_issues_total"]; !ok {
+		t.Error("metric sonarr_health_issues_total not found in gathered output")
+	} else if len(mf.GetMetric()) != 2 {
+		t.Errorf("expected 2 health issue metrics, got %d", len(mf.GetMetric()))
 	}
 }
 
@@ -124,15 +131,9 @@ func TestSeriesCollector(t *testing.T) {
 	})
 	defer srv.Close()
 
-	c := NewSeriesCollector(newClient(srv.URL), 5*time.Second, slog.Default())
+	c := newSeriesCollector(newClient(srv.URL), 5*time.Second, slog.Default())
 
-	reg := prometheus.NewRegistry()
-	reg.MustRegister(c)
-
-	mfs, err := reg.Gather()
-	if err != nil {
-		t.Fatalf("gather failed: %v", err)
-	}
+	families := collectSub(t, c)
 
 	expected := map[string]float64{
 		"sonarr_series_total":              3,
@@ -144,19 +145,16 @@ func TestSeriesCollector(t *testing.T) {
 		"sonarr_series_size_bytes":         9000000000, // 5B+3B+1B
 	}
 
-	for _, mf := range mfs {
-		name := mf.GetName()
-		if exp, ok := expected[name]; ok {
-			got := mf.GetMetric()[0].GetGauge().GetValue()
-			if got != exp {
-				t.Errorf("%s: expected %v, got %v", name, exp, got)
-			}
-			delete(expected, name)
+	for name, exp := range expected {
+		mf, ok := families[name]
+		if !ok {
+			t.Errorf("metric %s not found", name)
+			continue
 		}
-	}
-
-	for name := range expected {
-		t.Errorf("metric %s not found", name)
+		got := mf.GetMetric()[0].GetGauge().GetValue()
+		if got != exp {
+			t.Errorf("%s: expected %v, got %v", name, exp, got)
+		}
 	}
 }
 
@@ -174,35 +172,24 @@ func TestQueueCollector(t *testing.T) {
 	})
 	defer srv.Close()
 
-	c := NewQueueCollector(newClient(srv.URL), 5*time.Second, slog.Default())
+	c := newQueueCollector(newClient(srv.URL), 5*time.Second, slog.Default())
 
 	expected := strings.NewReader(`
 # HELP sonarr_queue_total Total number of items in the download queue.
 # TYPE sonarr_queue_total gauge
 sonarr_queue_total 4
 `)
-	if err := testutil.CollectAndCompare(c, expected, "sonarr_queue_total"); err != nil {
+	if err := testutil.CollectAndCompare(wrapSub(c), expected, "sonarr_queue_total"); err != nil {
 		t.Errorf("queue total mismatch: %v", err)
 	}
 
 	// Verify by_state counts exist
-	reg := prometheus.NewRegistry()
-	reg.MustRegister(c)
-	mfs, err := reg.Gather()
-	if err != nil {
-		t.Fatalf("gather failed: %v", err)
-	}
-	found := false
-	for _, mf := range mfs {
-		if mf.GetName() == "sonarr_queue_by_state_total" {
-			found = true
-			if len(mf.GetMetric()) != 3 {
-				t.Errorf("expected 3 state metrics, got %d", len(mf.GetMetric()))
-			}
-		}
-	}
-	if !found {
+	families := collectSub(t, c)
+	mf, ok := families["sonarr_queue_by_state_total"]
+	if !ok {
 		t.Error("sonarr_queue_by_state_total not found")
+	} else if len(mf.GetMetric()) != 3 {
+		t.Errorf("expected 3 state metrics, got %d", len(mf.GetMetric()))
 	}
 }
 
@@ -224,45 +211,38 @@ func TestExtrasCollector(t *testing.T) {
 	})
 	defer srv.Close()
 
-	c := NewExtrasCollector(newClient(srv.URL), 5*time.Second, slog.Default())
+	c := newExtrasCollector(newClient(srv.URL), 5*time.Second, slog.Default())
 
-	reg := prometheus.NewRegistry()
-	reg.MustRegister(c)
-
-	mfs, err := reg.Gather()
-	if err != nil {
-		t.Fatalf("gather failed: %v", err)
-	}
+	families := collectSub(t, c)
 
 	checks := map[string]float64{
 		"sonarr_backup_total":    2,
 		"sonarr_blocklist_total": 15,
 	}
 
-	for _, mf := range mfs {
-		name := mf.GetName()
-		if exp, ok := checks[name]; ok {
-			got := mf.GetMetric()[0].GetGauge().GetValue()
-			if got != exp {
-				t.Errorf("%s: expected %v, got %v", name, exp, got)
-			}
-			delete(checks, name)
+	for name, exp := range checks {
+		mf, ok := families[name]
+		if !ok {
+			t.Errorf("metric %s not found", name)
+			continue
 		}
-		if name == "sonarr_update_available" {
-			m := mf.GetMetric()[0]
-			if m.GetGauge().GetValue() != 1 {
-				t.Errorf("expected update_available=1, got %v", m.GetGauge().GetValue())
-			}
-		}
-		if name == "sonarr_download_client_info" {
-			if len(mf.GetMetric()) != 1 {
-				t.Errorf("expected 1 download client info (only enabled), got %d", len(mf.GetMetric()))
-			}
+		got := mf.GetMetric()[0].GetGauge().GetValue()
+		if got != exp {
+			t.Errorf("%s: expected %v, got %v", name, exp, got)
 		}
 	}
 
-	for name := range checks {
-		t.Errorf("metric %s not found", name)
+	if mf, ok := families["sonarr_update_available"]; ok {
+		m := mf.GetMetric()[0]
+		if m.GetGauge().GetValue() != 1 {
+			t.Errorf("expected update_available=1, got %v", m.GetGauge().GetValue())
+		}
+	}
+
+	if mf, ok := families["sonarr_download_client_info"]; ok {
+		if len(mf.GetMetric()) != 1 {
+			t.Errorf("expected 1 download client info (only enabled), got %d", len(mf.GetMetric()))
+		}
 	}
 }
 
@@ -275,15 +255,9 @@ func TestDiskCollector(t *testing.T) {
 	})
 	defer srv.Close()
 
-	c := NewDiskCollector(newClient(srv.URL), 5*time.Second, slog.Default())
+	c := newDiskCollector(newClient(srv.URL), 5*time.Second, slog.Default())
 
-	reg := prometheus.NewRegistry()
-	reg.MustRegister(c)
-
-	mfs, err := reg.Gather()
-	if err != nil {
-		t.Fatalf("gather failed: %v", err)
-	}
+	families := collectSub(t, c)
 
 	type diskExpect struct {
 		path  string
@@ -298,22 +272,21 @@ func TestDiskCollector(t *testing.T) {
 	totalByPath := map[string]float64{}
 	freeByPath := map[string]float64{}
 
-	for _, mf := range mfs {
+	if mf, ok := families["sonarr_disk_total_bytes"]; ok {
 		for _, m := range mf.GetMetric() {
-			var pathVal string
 			for _, lp := range m.GetLabel() {
 				if lp.GetName() == "path" {
-					pathVal = lp.GetValue()
+					totalByPath[lp.GetValue()] = m.GetGauge().GetValue()
 				}
 			}
-			if pathVal == "" {
-				continue
-			}
-			switch mf.GetName() {
-			case "sonarr_disk_total_bytes":
-				totalByPath[pathVal] = m.GetGauge().GetValue()
-			case "sonarr_disk_free_bytes":
-				freeByPath[pathVal] = m.GetGauge().GetValue()
+		}
+	}
+	if mf, ok := families["sonarr_disk_free_bytes"]; ok {
+		for _, m := range mf.GetMetric() {
+			for _, lp := range m.GetLabel() {
+				if lp.GetName() == "path" {
+					freeByPath[lp.GetValue()] = m.GetGauge().GetValue()
+				}
 			}
 		}
 	}
@@ -338,14 +311,14 @@ func TestCalendarCollector(t *testing.T) {
 	})
 	defer srv.Close()
 
-	c := NewCalendarCollector(newClient(srv.URL), 5*time.Second, slog.Default())
+	c := newCalendarCollector(newClient(srv.URL), 5*time.Second, slog.Default())
 
 	expected := strings.NewReader(`
 # HELP sonarr_calendar_upcoming_total Total number of upcoming episodes in the next 7 days.
 # TYPE sonarr_calendar_upcoming_total gauge
 sonarr_calendar_upcoming_total 3
 `)
-	if err := testutil.CollectAndCompare(c, expected, "sonarr_calendar_upcoming_total"); err != nil {
+	if err := testutil.CollectAndCompare(wrapSub(c), expected, "sonarr_calendar_upcoming_total"); err != nil {
 		t.Errorf("calendar metric mismatch: %v", err)
 	}
 }

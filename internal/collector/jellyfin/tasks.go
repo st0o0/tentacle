@@ -9,7 +9,7 @@ import (
 	"github.com/st0o0/tentacle/internal/client/jellyfin"
 )
 
-type TasksCollector struct {
+type tasksCollector struct {
 	client  *jellyfin.Client
 	timeout time.Duration
 	logger  *slog.Logger
@@ -21,8 +21,8 @@ type TasksCollector struct {
 	lastRun      *prometheus.Desc
 }
 
-func NewTasksCollector(client *jellyfin.Client, timeout time.Duration, logger *slog.Logger) *TasksCollector {
-	return &TasksCollector{
+func newTasksCollector(client *jellyfin.Client, timeout time.Duration, logger *slog.Logger) *tasksCollector {
+	return &tasksCollector{
 		client:  client,
 		timeout: timeout,
 		logger:  logger,
@@ -54,34 +54,24 @@ func NewTasksCollector(client *jellyfin.Client, timeout time.Duration, logger *s
 	}
 }
 
-func (c *TasksCollector) Describe(ch chan<- *prometheus.Desc) {
+func (c *tasksCollector) Name() string { return "tasks" }
+
+func (c *tasksCollector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- c.state
 	ch <- c.progress
 	ch <- c.lastDuration
 	ch <- c.lastSuccess
 	ch <- c.lastRun
-	ch <- scrape.Duration
-	ch <- scrape.Success
 }
 
-func (c *TasksCollector) Collect(ch chan<- prometheus.Metric) {
-	start := time.Now()
-
+func (c *tasksCollector) Update(ch chan<- prometheus.Metric) error {
 	ctx, cancel := context.WithTimeout(context.Background(), c.timeout)
 	defer cancel()
 
 	tasks, err := c.client.GetScheduledTasks(ctx)
-	duration := time.Since(start).Seconds()
-
-	ch <- prometheus.MustNewConstMetric(scrape.Duration, prometheus.GaugeValue, duration, "tasks")
-
 	if err != nil {
-		c.logger.Error("tasks collector failed", "err", err)
-		ch <- prometheus.MustNewConstMetric(scrape.Success, prometheus.GaugeValue, 0, "tasks")
-		return
+		return err
 	}
-
-	ch <- prometheus.MustNewConstMetric(scrape.Success, prometheus.GaugeValue, 1, "tasks")
 
 	for _, t := range tasks {
 		stateVal := 0.0
@@ -110,4 +100,5 @@ func (c *TasksCollector) Collect(ch chan<- prometheus.Metric) {
 			}
 		}
 	}
+	return nil
 }

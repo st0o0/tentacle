@@ -9,7 +9,7 @@ import (
 	"github.com/st0o0/tentacle/internal/client/jellyfin"
 )
 
-type DevicesCollector struct {
+type devicesCollector struct {
 	client  *jellyfin.Client
 	timeout time.Duration
 	logger  *slog.Logger
@@ -18,8 +18,8 @@ type DevicesCollector struct {
 	lastActivity *prometheus.Desc
 }
 
-func NewDevicesCollector(client *jellyfin.Client, timeout time.Duration, logger *slog.Logger) *DevicesCollector {
-	return &DevicesCollector{
+func newDevicesCollector(client *jellyfin.Client, timeout time.Duration, logger *slog.Logger) *devicesCollector {
+	return &devicesCollector{
 		client:  client,
 		timeout: timeout,
 		logger:  logger,
@@ -36,31 +36,22 @@ func NewDevicesCollector(client *jellyfin.Client, timeout time.Duration, logger 
 	}
 }
 
-func (c *DevicesCollector) Describe(ch chan<- *prometheus.Desc) {
+func (c *devicesCollector) Name() string { return "devices" }
+
+func (c *devicesCollector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- c.total
 	ch <- c.lastActivity
-	ch <- scrape.Duration
-	ch <- scrape.Success
 }
 
-func (c *DevicesCollector) Collect(ch chan<- prometheus.Metric) {
-	start := time.Now()
-
+func (c *devicesCollector) Update(ch chan<- prometheus.Metric) error {
 	ctx, cancel := context.WithTimeout(context.Background(), c.timeout)
 	defer cancel()
 
 	resp, err := c.client.GetDevices(ctx)
-	duration := time.Since(start).Seconds()
-
-	ch <- prometheus.MustNewConstMetric(scrape.Duration, prometheus.GaugeValue, duration, "devices")
-
 	if err != nil {
-		c.logger.Error("devices collector failed", "err", err)
-		ch <- prometheus.MustNewConstMetric(scrape.Success, prometheus.GaugeValue, 0, "devices")
-		return
+		return err
 	}
 
-	ch <- prometheus.MustNewConstMetric(scrape.Success, prometheus.GaugeValue, 1, "devices")
 	ch <- prometheus.MustNewConstMetric(c.total, prometheus.GaugeValue, float64(resp.TotalRecordCount))
 
 	for _, d := range resp.Items {
@@ -68,4 +59,5 @@ func (c *DevicesCollector) Collect(ch chan<- prometheus.Metric) {
 			ch <- prometheus.MustNewConstMetric(c.lastActivity, prometheus.GaugeValue, float64(t.Unix()), d.Name, d.AppName, d.AppVersion, d.LastUserName)
 		}
 	}
+	return nil
 }

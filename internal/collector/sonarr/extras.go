@@ -10,20 +10,20 @@ import (
 	"github.com/st0o0/tentacle/internal/client/arr"
 )
 
-type ExtrasCollector struct {
+type extrasCollector struct {
 	client  *arr.Client
 	timeout time.Duration
 	logger  *slog.Logger
 
-	backupTotal       *prometheus.Desc
-	backupLatest      *prometheus.Desc
-	updateAvailable   *prometheus.Desc
-	blocklistTotal    *prometheus.Desc
+	backupTotal        *prometheus.Desc
+	backupLatest       *prometheus.Desc
+	updateAvailable    *prometheus.Desc
+	blocklistTotal     *prometheus.Desc
 	downloadClientInfo *prometheus.Desc
 }
 
-func NewExtrasCollector(client *arr.Client, timeout time.Duration, logger *slog.Logger) *ExtrasCollector {
-	return &ExtrasCollector{
+func newExtrasCollector(client *arr.Client, timeout time.Duration, logger *slog.Logger) *extrasCollector {
+	return &extrasCollector{
 		client:  client,
 		timeout: timeout,
 		logger:  logger,
@@ -55,27 +55,25 @@ func NewExtrasCollector(client *arr.Client, timeout time.Duration, logger *slog.
 	}
 }
 
-func (c *ExtrasCollector) Describe(ch chan<- *prometheus.Desc) {
+func (c *extrasCollector) Name() string { return "extras" }
+
+func (c *extrasCollector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- c.backupTotal
 	ch <- c.backupLatest
 	ch <- c.updateAvailable
 	ch <- c.blocklistTotal
 	ch <- c.downloadClientInfo
-	ch <- scrape.Duration
-	ch <- scrape.Success
 }
 
-func (c *ExtrasCollector) Collect(ch chan<- prometheus.Metric) {
-	start := time.Now()
-	success := true
-
+func (c *extrasCollector) Update(ch chan<- prometheus.Metric) error {
 	ctx, cancel := context.WithTimeout(context.Background(), c.timeout)
 	defer cancel()
 
+	var firstErr error
+
 	backups, err := c.client.GetBackups(ctx)
 	if err != nil {
-		c.logger.Error("backups fetch failed", "err", err)
-		success = false
+		firstErr = err
 	} else {
 		ch <- prometheus.MustNewConstMetric(c.backupTotal, prometheus.GaugeValue, float64(len(backups)))
 		var latestTime time.Time
@@ -91,8 +89,9 @@ func (c *ExtrasCollector) Collect(ch chan<- prometheus.Metric) {
 
 	updates, err := c.client.GetUpdates(ctx)
 	if err != nil {
-		c.logger.Error("updates fetch failed", "err", err)
-		success = false
+		if firstErr == nil {
+			firstErr = err
+		}
 	} else if len(updates) > 0 {
 		latest := updates[0]
 		val := 0.0
@@ -104,16 +103,18 @@ func (c *ExtrasCollector) Collect(ch chan<- prometheus.Metric) {
 
 	blocklist, err := c.client.GetBlocklist(ctx)
 	if err != nil {
-		c.logger.Error("blocklist fetch failed", "err", err)
-		success = false
+		if firstErr == nil {
+			firstErr = err
+		}
 	} else {
 		ch <- prometheus.MustNewConstMetric(c.blocklistTotal, prometheus.GaugeValue, float64(blocklist.TotalRecords))
 	}
 
 	dlClients, err := c.client.GetDownloadClients(ctx)
 	if err != nil {
-		c.logger.Error("download clients fetch failed", "err", err)
-		success = false
+		if firstErr == nil {
+			firstErr = err
+		}
 	} else {
 		for _, dc := range dlClients {
 			if dc.Enable {
@@ -122,10 +123,5 @@ func (c *ExtrasCollector) Collect(ch chan<- prometheus.Metric) {
 		}
 	}
 
-	successVal := 1.0
-	if !success {
-		successVal = 0
-	}
-	ch <- prometheus.MustNewConstMetric(scrape.Duration, prometheus.GaugeValue, time.Since(start).Seconds(), "extras")
-	ch <- prometheus.MustNewConstMetric(scrape.Success, prometheus.GaugeValue, successVal, "extras")
+	return firstErr
 }

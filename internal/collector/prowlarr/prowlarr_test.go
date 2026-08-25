@@ -10,7 +10,12 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/st0o0/tentacle/internal/client/arr"
+	"github.com/st0o0/tentacle/internal/collector"
 )
+
+func wrapSub(sc collector.SubCollector) *collector.ServiceCollector {
+	return collector.NewServiceCollector(namespace, slog.Default(), sc)
+}
 
 func newTestServer(mux *http.ServeMux) (*httptest.Server, *arr.Client) {
 	srv := httptest.NewServer(mux)
@@ -42,7 +47,7 @@ func TestSystemCollector_Success(t *testing.T) {
 	srv, client := newTestServer(mux)
 	defer srv.Close()
 
-	c := NewSystemCollector(client, 5*time.Second, slog.Default())
+	c := newSystemCollector(client, 5*time.Second, slog.Default())
 
 	// up = 1
 	expected := `
@@ -50,7 +55,7 @@ func TestSystemCollector_Success(t *testing.T) {
 		# TYPE prowlarr_up gauge
 		prowlarr_up 1
 	`
-	if err := testutil.CollectAndCompare(c, strings.NewReader(expected), "prowlarr_up"); err != nil {
+	if err := testutil.CollectAndCompare(wrapSub(c), strings.NewReader(expected), "prowlarr_up"); err != nil {
 		t.Error(err)
 	}
 
@@ -60,7 +65,7 @@ func TestSystemCollector_Success(t *testing.T) {
 		# TYPE prowlarr_system_info gauge
 		prowlarr_system_info{branch="main",runtime=".NET 8.0",version="1.12.0"} 1
 	`
-	if err := testutil.CollectAndCompare(c, strings.NewReader(expected), "prowlarr_system_info"); err != nil {
+	if err := testutil.CollectAndCompare(wrapSub(c), strings.NewReader(expected), "prowlarr_system_info"); err != nil {
 		t.Error(err)
 	}
 
@@ -71,7 +76,7 @@ func TestSystemCollector_Success(t *testing.T) {
 		prowlarr_health_issues_total{source="IndexerRssCheck",type="warning"} 2
 		prowlarr_health_issues_total{source="UpdateCheck",type="error"} 1
 	`
-	if err := testutil.CollectAndCompare(c, strings.NewReader(expected), "prowlarr_health_issues_total"); err != nil {
+	if err := testutil.CollectAndCompare(wrapSub(c), strings.NewReader(expected), "prowlarr_health_issues_total"); err != nil {
 		t.Error(err)
 	}
 
@@ -81,12 +86,12 @@ func TestSystemCollector_Success(t *testing.T) {
 		# TYPE prowlarr_system_start_time_seconds gauge
 		prowlarr_system_start_time_seconds 1.7040672e+09
 	`
-	if err := testutil.CollectAndCompare(c, strings.NewReader(expected), "prowlarr_system_start_time_seconds"); err != nil {
+	if err := testutil.CollectAndCompare(wrapSub(c), strings.NewReader(expected), "prowlarr_system_start_time_seconds"); err != nil {
 		t.Error(err)
 	}
 
 	// total metric count: up + info + start_time + 2 health + scrape_duration + scrape_success = 7
-	if count := testutil.CollectAndCount(c); count != 7 {
+	if count := testutil.CollectAndCount(wrapSub(c)); count != 7 {
 		t.Errorf("metric count = %d, want 7", count)
 	}
 }
@@ -101,14 +106,14 @@ func TestSystemCollector_APIFailure(t *testing.T) {
 	srv, client := newTestServer(mux)
 	defer srv.Close()
 
-	c := NewSystemCollector(client, 5*time.Second, slog.Default())
+	c := newSystemCollector(client, 5*time.Second, slog.Default())
 
 	expected := `
 		# HELP prowlarr_up Whether Prowlarr is reachable.
 		# TYPE prowlarr_up gauge
 		prowlarr_up 0
 	`
-	if err := testutil.CollectAndCompare(c, strings.NewReader(expected), "prowlarr_up"); err != nil {
+	if err := testutil.CollectAndCompare(wrapSub(c), strings.NewReader(expected), "prowlarr_up"); err != nil {
 		t.Error(err)
 	}
 
@@ -118,7 +123,7 @@ func TestSystemCollector_APIFailure(t *testing.T) {
 		# TYPE prowlarr_scrape_success gauge
 		prowlarr_scrape_success{collector="system"} 0
 	`
-	if err := testutil.CollectAndCompare(c, strings.NewReader(expected), "prowlarr_scrape_success"); err != nil {
+	if err := testutil.CollectAndCompare(wrapSub(c), strings.NewReader(expected), "prowlarr_scrape_success"); err != nil {
 		t.Error(err)
 	}
 }
@@ -160,7 +165,7 @@ func TestIndexersCollector_Success(t *testing.T) {
 	srv, client := newTestServer(mux)
 	defer srv.Close()
 
-	c := NewIndexersCollector(client, 5*time.Second, slog.Default())
+	c := newIndexersCollector(client, 5*time.Second, slog.Default())
 
 	// indexers_total = 3, enabled = 2
 	expected := `
@@ -168,7 +173,7 @@ func TestIndexersCollector_Success(t *testing.T) {
 		# TYPE prowlarr_indexers_total gauge
 		prowlarr_indexers_total 3
 	`
-	if err := testutil.CollectAndCompare(c, strings.NewReader(expected), "prowlarr_indexers_total"); err != nil {
+	if err := testutil.CollectAndCompare(wrapSub(c), strings.NewReader(expected), "prowlarr_indexers_total"); err != nil {
 		t.Error(err)
 	}
 
@@ -177,7 +182,7 @@ func TestIndexersCollector_Success(t *testing.T) {
 		# TYPE prowlarr_indexers_enabled_total gauge
 		prowlarr_indexers_enabled_total 2
 	`
-	if err := testutil.CollectAndCompare(c, strings.NewReader(expected), "prowlarr_indexers_enabled_total"); err != nil {
+	if err := testutil.CollectAndCompare(wrapSub(c), strings.NewReader(expected), "prowlarr_indexers_enabled_total"); err != nil {
 		t.Error(err)
 	}
 
@@ -188,7 +193,7 @@ func TestIndexersCollector_Success(t *testing.T) {
 		prowlarr_indexer_queries_total{indexer="NZBgeek"} 150
 		prowlarr_indexer_queries_total{indexer="Torznab"} 200
 	`
-	if err := testutil.CollectAndCompare(c, strings.NewReader(expected), "prowlarr_indexer_queries_total"); err != nil {
+	if err := testutil.CollectAndCompare(wrapSub(c), strings.NewReader(expected), "prowlarr_indexer_queries_total"); err != nil {
 		t.Error(err)
 	}
 
@@ -198,7 +203,7 @@ func TestIndexersCollector_Success(t *testing.T) {
 		prowlarr_indexer_grabs_total{indexer="NZBgeek"} 42
 		prowlarr_indexer_grabs_total{indexer="Torznab"} 10
 	`
-	if err := testutil.CollectAndCompare(c, strings.NewReader(expected), "prowlarr_indexer_grabs_total"); err != nil {
+	if err := testutil.CollectAndCompare(wrapSub(c), strings.NewReader(expected), "prowlarr_indexer_grabs_total"); err != nil {
 		t.Error(err)
 	}
 
@@ -208,7 +213,7 @@ func TestIndexersCollector_Success(t *testing.T) {
 		prowlarr_indexer_failed_queries_total{indexer="NZBgeek"} 3
 		prowlarr_indexer_failed_queries_total{indexer="Torznab"} 5
 	`
-	if err := testutil.CollectAndCompare(c, strings.NewReader(expected), "prowlarr_indexer_failed_queries_total"); err != nil {
+	if err := testutil.CollectAndCompare(wrapSub(c), strings.NewReader(expected), "prowlarr_indexer_failed_queries_total"); err != nil {
 		t.Error(err)
 	}
 
@@ -218,7 +223,7 @@ func TestIndexersCollector_Success(t *testing.T) {
 		prowlarr_indexer_failed_grabs_total{indexer="NZBgeek"} 1
 		prowlarr_indexer_failed_grabs_total{indexer="Torznab"} 2
 	`
-	if err := testutil.CollectAndCompare(c, strings.NewReader(expected), "prowlarr_indexer_failed_grabs_total"); err != nil {
+	if err := testutil.CollectAndCompare(wrapSub(c), strings.NewReader(expected), "prowlarr_indexer_failed_grabs_total"); err != nil {
 		t.Error(err)
 	}
 
@@ -229,7 +234,7 @@ func TestIndexersCollector_Success(t *testing.T) {
 		prowlarr_indexer_avg_response_seconds{indexer="NZBgeek"} 0.5
 		prowlarr_indexer_avg_response_seconds{indexer="Torznab"} 1.2
 	`
-	if err := testutil.CollectAndCompare(c, strings.NewReader(expected), "prowlarr_indexer_avg_response_seconds"); err != nil {
+	if err := testutil.CollectAndCompare(wrapSub(c), strings.NewReader(expected), "prowlarr_indexer_avg_response_seconds"); err != nil {
 		t.Error(err)
 	}
 
@@ -240,12 +245,12 @@ func TestIndexersCollector_Success(t *testing.T) {
 		prowlarr_indexers_by_protocol_total{protocol="torrent"} 2
 		prowlarr_indexers_by_protocol_total{protocol="usenet"} 1
 	`
-	if err := testutil.CollectAndCompare(c, strings.NewReader(expected), "prowlarr_indexers_by_protocol_total"); err != nil {
+	if err := testutil.CollectAndCompare(wrapSub(c), strings.NewReader(expected), "prowlarr_indexers_by_protocol_total"); err != nil {
 		t.Error(err)
 	}
 
 	// total: indexersTotal(1) + enabledTotal(1) + byProtocol(2) + 2*5 stats(10) + scrape_duration(1) + scrape_success(1) = 16
-	if count := testutil.CollectAndCount(c); count != 16 {
+	if count := testutil.CollectAndCount(wrapSub(c)); count != 16 {
 		t.Errorf("metric count = %d, want 16", count)
 	}
 }
@@ -259,19 +264,19 @@ func TestIndexersCollector_APIFailure(t *testing.T) {
 	srv, client := newTestServer(mux)
 	defer srv.Close()
 
-	c := NewIndexersCollector(client, 5*time.Second, slog.Default())
+	c := newIndexersCollector(client, 5*time.Second, slog.Default())
 
 	expected := `
 		# HELP prowlarr_scrape_success Whether a collector scrape was successful.
 		# TYPE prowlarr_scrape_success gauge
 		prowlarr_scrape_success{collector="indexers"} 0
 	`
-	if err := testutil.CollectAndCompare(c, strings.NewReader(expected), "prowlarr_scrape_success"); err != nil {
+	if err := testutil.CollectAndCompare(wrapSub(c), strings.NewReader(expected), "prowlarr_scrape_success"); err != nil {
 		t.Error(err)
 	}
 
 	// Only scrape_duration + scrape_success emitted on failure
-	if count := testutil.CollectAndCount(c); count != 2 {
+	if count := testutil.CollectAndCount(wrapSub(c)); count != 2 {
 		t.Errorf("metric count on failure = %d, want 2", count)
 	}
 }
@@ -289,7 +294,7 @@ func TestIndexersCollector_StatsFailure(t *testing.T) {
 	srv, client := newTestServer(mux)
 	defer srv.Close()
 
-	c := NewIndexersCollector(client, 5*time.Second, slog.Default())
+	c := newIndexersCollector(client, 5*time.Second, slog.Default())
 
 	// indexers_total and enabled_total should still be emitted
 	expected := `
@@ -297,7 +302,7 @@ func TestIndexersCollector_StatsFailure(t *testing.T) {
 		# TYPE prowlarr_indexers_total gauge
 		prowlarr_indexers_total 1
 	`
-	if err := testutil.CollectAndCompare(c, strings.NewReader(expected), "prowlarr_indexers_total"); err != nil {
+	if err := testutil.CollectAndCompare(wrapSub(c), strings.NewReader(expected), "prowlarr_indexers_total"); err != nil {
 		t.Error(err)
 	}
 
@@ -306,7 +311,7 @@ func TestIndexersCollector_StatsFailure(t *testing.T) {
 		# TYPE prowlarr_scrape_success gauge
 		prowlarr_scrape_success{collector="indexers"} 0
 	`
-	if err := testutil.CollectAndCompare(c, strings.NewReader(expected), "prowlarr_scrape_success"); err != nil {
+	if err := testutil.CollectAndCompare(wrapSub(c), strings.NewReader(expected), "prowlarr_scrape_success"); err != nil {
 		t.Error(err)
 	}
 }
@@ -335,14 +340,14 @@ func TestAppsCollector_Success(t *testing.T) {
 	srv, client := newTestServer(mux)
 	defer srv.Close()
 
-	c := NewAppsCollector(client, 5*time.Second, slog.Default())
+	c := newAppsCollector(client, 5*time.Second, slog.Default())
 
 	expected := `
 		# HELP prowlarr_apps_total Total number of connected applications.
 		# TYPE prowlarr_apps_total gauge
 		prowlarr_apps_total 2
 	`
-	if err := testutil.CollectAndCompare(c, strings.NewReader(expected), "prowlarr_apps_total"); err != nil {
+	if err := testutil.CollectAndCompare(wrapSub(c), strings.NewReader(expected), "prowlarr_apps_total"); err != nil {
 		t.Error(err)
 	}
 
@@ -352,7 +357,7 @@ func TestAppsCollector_Success(t *testing.T) {
 		prowlarr_app_info{implementation="Radarr",name="Radarr",sync_level="fullSync"} 1
 		prowlarr_app_info{implementation="Sonarr",name="Sonarr",sync_level="fullSync"} 1
 	`
-	if err := testutil.CollectAndCompare(c, strings.NewReader(expected), "prowlarr_app_info"); err != nil {
+	if err := testutil.CollectAndCompare(wrapSub(c), strings.NewReader(expected), "prowlarr_app_info"); err != nil {
 		t.Error(err)
 	}
 
@@ -361,7 +366,7 @@ func TestAppsCollector_Success(t *testing.T) {
 		# TYPE prowlarr_indexer_disabled gauge
 		prowlarr_indexer_disabled{indexer="NZBgeek"} 1
 	`
-	if err := testutil.CollectAndCompare(c, strings.NewReader(expected), "prowlarr_indexer_disabled"); err != nil {
+	if err := testutil.CollectAndCompare(wrapSub(c), strings.NewReader(expected), "prowlarr_indexer_disabled"); err != nil {
 		t.Error(err)
 	}
 }
@@ -382,9 +387,9 @@ func TestSystemCollector_APIKeyHeader(t *testing.T) {
 	srv, client := newTestServer(mux)
 	defer srv.Close()
 
-	c := NewSystemCollector(client, 5*time.Second, slog.Default())
+	c := newSystemCollector(client, 5*time.Second, slog.Default())
 	// trigger collection
-	testutil.CollectAndCount(c)
+	testutil.CollectAndCount(wrapSub(c))
 
 	if gotKey != "test-api-key" {
 		t.Errorf("X-Api-Key = %q, want %q", gotKey, "test-api-key")

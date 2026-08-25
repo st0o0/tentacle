@@ -9,7 +9,7 @@ import (
 	"github.com/st0o0/tentacle/internal/client/jellyfin"
 )
 
-type SystemCollector struct {
+type systemCollector struct {
 	client  *jellyfin.Client
 	timeout time.Duration
 	logger  *slog.Logger
@@ -19,8 +19,8 @@ type SystemCollector struct {
 	up             *prometheus.Desc
 }
 
-func NewSystemCollector(client *jellyfin.Client, timeout time.Duration, logger *slog.Logger) *SystemCollector {
-	return &SystemCollector{
+func newSystemCollector(client *jellyfin.Client, timeout time.Duration, logger *slog.Logger) *systemCollector {
+	return &systemCollector{
 		client:  client,
 		timeout: timeout,
 		logger:  logger,
@@ -42,33 +42,24 @@ func NewSystemCollector(client *jellyfin.Client, timeout time.Duration, logger *
 	}
 }
 
-func (c *SystemCollector) Describe(ch chan<- *prometheus.Desc) {
+func (c *systemCollector) Name() string { return "system" }
+
+func (c *systemCollector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- c.info
 	ch <- c.pendingRestart
 	ch <- c.up
-	ch <- scrape.Duration
-	ch <- scrape.Success
 }
 
-func (c *SystemCollector) Collect(ch chan<- prometheus.Metric) {
-	start := time.Now()
-
+func (c *systemCollector) Update(ch chan<- prometheus.Metric) error {
 	ctx, cancel := context.WithTimeout(context.Background(), c.timeout)
 	defer cancel()
 
 	info, err := c.client.GetSystemInfo(ctx)
-	duration := time.Since(start).Seconds()
-
-	ch <- prometheus.MustNewConstMetric(scrape.Duration, prometheus.GaugeValue, duration, "system")
-
 	if err != nil {
-		c.logger.Error("system collector failed", "err", err)
-		ch <- prometheus.MustNewConstMetric(scrape.Success, prometheus.GaugeValue, 0, "system")
 		ch <- prometheus.MustNewConstMetric(c.up, prometheus.GaugeValue, 0)
-		return
+		return err
 	}
 
-	ch <- prometheus.MustNewConstMetric(scrape.Success, prometheus.GaugeValue, 1, "system")
 	ch <- prometheus.MustNewConstMetric(c.up, prometheus.GaugeValue, 1)
 	ch <- prometheus.MustNewConstMetric(c.info, prometheus.GaugeValue, 1, info.Version, info.OperatingSystem, info.SystemArchitecture)
 
@@ -77,4 +68,5 @@ func (c *SystemCollector) Collect(ch chan<- prometheus.Metric) {
 		restart = 1.0
 	}
 	ch <- prometheus.MustNewConstMetric(c.pendingRestart, prometheus.GaugeValue, restart)
+	return nil
 }

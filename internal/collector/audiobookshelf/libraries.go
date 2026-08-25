@@ -9,7 +9,7 @@ import (
 	"github.com/st0o0/tentacle/internal/client/audiobookshelf"
 )
 
-type LibrariesCollector struct {
+type librariesCollector struct {
 	client  *audiobookshelf.Client
 	timeout time.Duration
 	logger  *slog.Logger
@@ -26,9 +26,9 @@ type LibrariesCollector struct {
 	lastUpdate     *prometheus.Desc
 }
 
-func NewLibrariesCollector(client *audiobookshelf.Client, timeout time.Duration, logger *slog.Logger) *LibrariesCollector {
+func newLibrariesCollector(client *audiobookshelf.Client, timeout time.Duration, logger *slog.Logger) *librariesCollector {
 	labels := []string{"library", "media_type"}
-	return &LibrariesCollector{
+	return &librariesCollector{
 		client:  client,
 		timeout: timeout,
 		logger:  logger,
@@ -85,7 +85,11 @@ func NewLibrariesCollector(client *audiobookshelf.Client, timeout time.Duration,
 	}
 }
 
-func (c *LibrariesCollector) Describe(ch chan<- *prometheus.Desc) {
+func (c *librariesCollector) Name() string {
+	return "libraries"
+}
+
+func (c *librariesCollector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- c.librariesTotal
 	ch <- c.itemsTotal
 	ch <- c.sizeBytes
@@ -96,23 +100,15 @@ func (c *LibrariesCollector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- c.missingTotal
 	ch <- c.invalidTotal
 	ch <- c.lastUpdate
-	ch <- scrape.Duration
-	ch <- scrape.Success
 }
 
-func (c *LibrariesCollector) Collect(ch chan<- prometheus.Metric) {
-	start := time.Now()
-
+func (c *librariesCollector) Update(ch chan<- prometheus.Metric) error {
 	ctx, cancel := context.WithTimeout(context.Background(), c.timeout)
 	defer cancel()
 
 	libraries, err := c.client.GetLibraries(ctx)
 	if err != nil {
-		duration := time.Since(start).Seconds()
-		c.logger.Error("libraries collector failed", "err", err)
-		ch <- prometheus.MustNewConstMetric(scrape.Duration, prometheus.GaugeValue, duration, "libraries")
-		ch <- prometheus.MustNewConstMetric(scrape.Success, prometheus.GaugeValue, 0, "libraries")
-		return
+		return err
 	}
 
 	ch <- prometheus.MustNewConstMetric(c.librariesTotal, prometheus.GaugeValue, float64(len(libraries)))
@@ -140,7 +136,5 @@ func (c *LibrariesCollector) Collect(ch chan<- prometheus.Metric) {
 		ch <- prometheus.MustNewConstMetric(c.invalidTotal, prometheus.GaugeValue, float64(stats.NumInvalid), labels...)
 	}
 
-	duration := time.Since(start).Seconds()
-	ch <- prometheus.MustNewConstMetric(scrape.Duration, prometheus.GaugeValue, duration, "libraries")
-	ch <- prometheus.MustNewConstMetric(scrape.Success, prometheus.GaugeValue, 1, "libraries")
+	return nil
 }

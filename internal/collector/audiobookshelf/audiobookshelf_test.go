@@ -10,6 +10,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
 	"github.com/st0o0/tentacle/internal/client/audiobookshelf"
+	"github.com/st0o0/tentacle/internal/collector"
 )
 
 func newTestClient(url string) *audiobookshelf.Client {
@@ -30,9 +31,9 @@ func TestSystemCollector_Up(t *testing.T) {
 	srv := httptest.NewServer(mux)
 	defer srv.Close()
 
-	c := NewSystemCollector(newTestClient(srv.URL), 5*time.Second, slog.Default())
+	c := newSystemCollector(newTestClient(srv.URL), 5*time.Second, slog.Default())
 
-	families := collect(t, c)
+	families := collectSub(t, c)
 	assertGauge(t, families, "audiobookshelf_up", nil, 1)
 	assertGauge(t, families, "audiobookshelf_system_info", map[string]string{"version": "2.17.0"}, 1)
 	assertGauge(t, families, "audiobookshelf_scrape_success", map[string]string{"collector": "system"}, 1)
@@ -44,17 +45,17 @@ func TestSystemCollector_Down(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := NewSystemCollector(newTestClient(srv.URL), 5*time.Second, slog.Default())
+	c := newSystemCollector(newTestClient(srv.URL), 5*time.Second, slog.Default())
 
-	families := collect(t, c)
+	families := collectSub(t, c)
 	assertGauge(t, families, "audiobookshelf_up", nil, 0)
 	assertGauge(t, families, "audiobookshelf_scrape_success", map[string]string{"collector": "system"}, 0)
 }
 
 func TestSystemCollector_Unreachable(t *testing.T) {
-	c := NewSystemCollector(newTestClient("http://127.0.0.1:1"), 1*time.Second, slog.Default())
+	c := newSystemCollector(newTestClient("http://127.0.0.1:1"), 1*time.Second, slog.Default())
 
-	families := collect(t, c)
+	families := collectSub(t, c)
 	assertGauge(t, families, "audiobookshelf_up", nil, 0)
 }
 
@@ -78,9 +79,9 @@ func TestLibrariesCollector(t *testing.T) {
 	srv := httptest.NewServer(mux)
 	defer srv.Close()
 
-	c := NewLibrariesCollector(newTestClient(srv.URL), 5*time.Second, slog.Default())
+	c := newLibrariesCollector(newTestClient(srv.URL), 5*time.Second, slog.Default())
 
-	families := collect(t, c)
+	families := collectSub(t, c)
 	assertGauge(t, families, "audiobookshelf_libraries_total", nil, 2)
 	assertGauge(t, families, "audiobookshelf_library_items_total", map[string]string{"library": "Audiobooks", "media_type": "book"}, 42)
 	assertGauge(t, families, "audiobookshelf_library_size_bytes", map[string]string{"library": "Audiobooks", "media_type": "book"}, 1073741824)
@@ -97,9 +98,9 @@ func TestLibrariesCollector_Error(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := NewLibrariesCollector(newTestClient(srv.URL), 5*time.Second, slog.Default())
+	c := newLibrariesCollector(newTestClient(srv.URL), 5*time.Second, slog.Default())
 
-	families := collect(t, c)
+	families := collectSub(t, c)
 	assertGauge(t, families, "audiobookshelf_scrape_success", map[string]string{"collector": "libraries"}, 0)
 }
 
@@ -127,9 +128,9 @@ func TestUsersCollector(t *testing.T) {
 	srv := httptest.NewServer(mux)
 	defer srv.Close()
 
-	c := NewUsersCollector(newTestClient(srv.URL), 5*time.Second, slog.Default())
+	c := newUsersCollector(newTestClient(srv.URL), 5*time.Second, slog.Default())
 
-	families := collect(t, c)
+	families := collectSub(t, c)
 	assertGauge(t, families, "audiobookshelf_users_total", nil, 2)
 	assertGauge(t, families, "audiobookshelf_users_active_total", nil, 1)
 	assertGauge(t, families, "audiobookshelf_users_online", nil, 1)
@@ -146,9 +147,9 @@ func TestUsersCollector_Error(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := NewUsersCollector(newTestClient(srv.URL), 5*time.Second, slog.Default())
+	c := newUsersCollector(newTestClient(srv.URL), 5*time.Second, slog.Default())
 
-	families := collect(t, c)
+	families := collectSub(t, c)
 	assertGauge(t, families, "audiobookshelf_scrape_success", map[string]string{"collector": "users"}, 0)
 }
 
@@ -164,9 +165,9 @@ func TestSessionsCollector(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := NewSessionsCollector(newTestClient(srv.URL), 5*time.Second, slog.Default())
+	c := newSessionsCollector(newTestClient(srv.URL), 5*time.Second, slog.Default())
 
-	families := collect(t, c)
+	families := collectSub(t, c)
 	assertGauge(t, families, "audiobookshelf_sessions_total", nil, 57)
 	assertGauge(t, families, "audiobookshelf_scrape_success", map[string]string{"collector": "sessions"}, 1)
 }
@@ -177,9 +178,9 @@ func TestSessionsCollector_Error(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := NewSessionsCollector(newTestClient(srv.URL), 5*time.Second, slog.Default())
+	c := newSessionsCollector(newTestClient(srv.URL), 5*time.Second, slog.Default())
 
-	families := collect(t, c)
+	families := collectSub(t, c)
 	assertGauge(t, families, "audiobookshelf_scrape_success", map[string]string{"collector": "sessions"}, 0)
 }
 
@@ -195,9 +196,9 @@ func TestBackupsCollector(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := NewBackupsCollector(newTestClient(srv.URL), 5*time.Second, slog.Default())
+	c := newBackupsCollector(newTestClient(srv.URL), 5*time.Second, slog.Default())
 
-	families := collect(t, c)
+	families := collectSub(t, c)
 	assertGauge(t, families, "audiobookshelf_backups_total", nil, 3)
 	// max CreatedAt: 1700100000000 ms -> 1700100000 seconds
 	assertGauge(t, families, "audiobookshelf_backup_latest_timestamp_seconds", nil, 1700100000)
@@ -211,9 +212,9 @@ func TestBackupsCollector_Empty(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := NewBackupsCollector(newTestClient(srv.URL), 5*time.Second, slog.Default())
+	c := newBackupsCollector(newTestClient(srv.URL), 5*time.Second, slog.Default())
 
-	families := collect(t, c)
+	families := collectSub(t, c)
 	assertGauge(t, families, "audiobookshelf_backups_total", nil, 0)
 	if findGauge(families, "audiobookshelf_backup_latest_timestamp_seconds", nil) != nil {
 		t.Error("expected no latest_timestamp metric for empty backups")
@@ -226,9 +227,9 @@ func TestBackupsCollector_Error(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := NewBackupsCollector(newTestClient(srv.URL), 5*time.Second, slog.Default())
+	c := newBackupsCollector(newTestClient(srv.URL), 5*time.Second, slog.Default())
 
-	families := collect(t, c)
+	families := collectSub(t, c)
 	assertGauge(t, families, "audiobookshelf_scrape_success", map[string]string{"collector": "backups"}, 0)
 }
 
@@ -247,17 +248,18 @@ func TestBearerTokenAuth(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := NewSessionsCollector(newTestClient(srv.URL), 5*time.Second, slog.Default())
-	families := collect(t, c)
+	c := newSessionsCollector(newTestClient(srv.URL), 5*time.Second, slog.Default())
+	families := collectSub(t, c)
 	assertGauge(t, families, "audiobookshelf_scrape_success", map[string]string{"collector": "sessions"}, 1)
 }
 
 // --- helpers ---
 
-func collect(t *testing.T, c prometheus.Collector) map[string]*dto.MetricFamily {
+func collectSub(t *testing.T, sc collector.SubCollector) map[string]*dto.MetricFamily {
 	t.Helper()
+	svc := collector.NewServiceCollector(namespace, slog.Default(), sc)
 	reg := prometheus.NewPedanticRegistry()
-	reg.MustRegister(c)
+	reg.MustRegister(svc)
 	families, err := reg.Gather()
 	if err != nil {
 		t.Fatalf("gather failed: %v", err)

@@ -9,7 +9,7 @@ import (
 	"github.com/st0o0/tentacle/internal/client/audiobookshelf"
 )
 
-type SystemCollector struct {
+type systemCollector struct {
 	client  *audiobookshelf.Client
 	timeout time.Duration
 	logger  *slog.Logger
@@ -18,8 +18,8 @@ type SystemCollector struct {
 	info *prometheus.Desc
 }
 
-func NewSystemCollector(client *audiobookshelf.Client, timeout time.Duration, logger *slog.Logger) *SystemCollector {
-	return &SystemCollector{
+func newSystemCollector(client *audiobookshelf.Client, timeout time.Duration, logger *slog.Logger) *systemCollector {
+	return &systemCollector{
 		client:  client,
 		timeout: timeout,
 		logger:  logger,
@@ -36,32 +36,25 @@ func NewSystemCollector(client *audiobookshelf.Client, timeout time.Duration, lo
 	}
 }
 
-func (c *SystemCollector) Describe(ch chan<- *prometheus.Desc) {
-	ch <- c.up
-	ch <- c.info
-	ch <- scrape.Duration
-	ch <- scrape.Success
+func (c *systemCollector) Name() string {
+	return "system"
 }
 
-func (c *SystemCollector) Collect(ch chan<- prometheus.Metric) {
-	start := time.Now()
+func (c *systemCollector) Describe(ch chan<- *prometheus.Desc) {
+	ch <- c.up
+	ch <- c.info
+}
 
+func (c *systemCollector) Update(ch chan<- prometheus.Metric) error {
 	ctx, cancel := context.WithTimeout(context.Background(), c.timeout)
 	defer cancel()
 
 	err := c.client.Ping(ctx)
-	duration := time.Since(start).Seconds()
-
-	ch <- prometheus.MustNewConstMetric(scrape.Duration, prometheus.GaugeValue, duration, "system")
-
 	if err != nil {
-		c.logger.Error("system collector failed", "err", err)
-		ch <- prometheus.MustNewConstMetric(scrape.Success, prometheus.GaugeValue, 0, "system")
 		ch <- prometheus.MustNewConstMetric(c.up, prometheus.GaugeValue, 0)
-		return
+		return err
 	}
 
-	ch <- prometheus.MustNewConstMetric(scrape.Success, prometheus.GaugeValue, 1, "system")
 	ch <- prometheus.MustNewConstMetric(c.up, prometheus.GaugeValue, 1)
 
 	backups, err := c.client.GetBackups(ctx)
@@ -76,4 +69,6 @@ func (c *SystemCollector) Collect(ch chan<- prometheus.Metric) {
 			ch <- prometheus.MustNewConstMetric(c.info, prometheus.GaugeValue, 1, latest.ServerVersion)
 		}
 	}
+
+	return nil
 }

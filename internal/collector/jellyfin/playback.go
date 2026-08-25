@@ -9,7 +9,7 @@ import (
 	"github.com/st0o0/tentacle/internal/client/jellyfin"
 )
 
-type PlaybackCollector struct {
+type playbackCollector struct {
 	client  *jellyfin.Client
 	timeout time.Duration
 	logger  *slog.Logger
@@ -18,8 +18,8 @@ type PlaybackCollector struct {
 	watchTime *prometheus.Desc
 }
 
-func NewPlaybackCollector(client *jellyfin.Client, timeout time.Duration, logger *slog.Logger) *PlaybackCollector {
-	return &PlaybackCollector{
+func newPlaybackCollector(client *jellyfin.Client, timeout time.Duration, logger *slog.Logger) *playbackCollector {
+	return &playbackCollector{
 		client:  client,
 		timeout: timeout,
 		logger:  logger,
@@ -36,31 +36,21 @@ func NewPlaybackCollector(client *jellyfin.Client, timeout time.Duration, logger
 	}
 }
 
-func (c *PlaybackCollector) Describe(ch chan<- *prometheus.Desc) {
+func (c *playbackCollector) Name() string { return "playback" }
+
+func (c *playbackCollector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- c.playCount
 	ch <- c.watchTime
-	ch <- scrape.Duration
-	ch <- scrape.Success
 }
 
-func (c *PlaybackCollector) Collect(ch chan<- prometheus.Metric) {
-	start := time.Now()
-
+func (c *playbackCollector) Update(ch chan<- prometheus.Metric) error {
 	ctx, cancel := context.WithTimeout(context.Background(), c.timeout)
 	defer cancel()
 
 	activity, err := c.client.GetPlaybackActivity(ctx, 30)
-	duration := time.Since(start).Seconds()
-
-	ch <- prometheus.MustNewConstMetric(scrape.Duration, prometheus.GaugeValue, duration, "playback")
-
 	if err != nil {
-		c.logger.Debug("playback collector unavailable (requires PlaybackReporting plugin)", "err", err)
-		ch <- prometheus.MustNewConstMetric(scrape.Success, prometheus.GaugeValue, 0, "playback")
-		return
+		return err
 	}
-
-	ch <- prometheus.MustNewConstMetric(scrape.Success, prometheus.GaugeValue, 1, "playback")
 
 	type userStats struct {
 		playCount int
@@ -86,4 +76,5 @@ func (c *PlaybackCollector) Collect(ch chan<- prometheus.Metric) {
 		ch <- prometheus.MustNewConstMetric(c.playCount, prometheus.GaugeValue, float64(s.playCount), user)
 		ch <- prometheus.MustNewConstMetric(c.watchTime, prometheus.GaugeValue, s.watchTime, user)
 	}
+	return nil
 }

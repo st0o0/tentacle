@@ -9,7 +9,7 @@ import (
 	"github.com/st0o0/tentacle/internal/client/arr"
 )
 
-type SystemCollector struct {
+type systemCollector struct {
 	client  *arr.Client
 	timeout time.Duration
 	logger  *slog.Logger
@@ -20,8 +20,8 @@ type SystemCollector struct {
 	healthTotal *prometheus.Desc
 }
 
-func NewSystemCollector(client *arr.Client, timeout time.Duration, logger *slog.Logger) *SystemCollector {
-	return &SystemCollector{
+func newSystemCollector(client *arr.Client, timeout time.Duration, logger *slog.Logger) *systemCollector {
+	return &systemCollector{
 		client:  client,
 		timeout: timeout,
 		logger:  logger,
@@ -48,34 +48,25 @@ func NewSystemCollector(client *arr.Client, timeout time.Duration, logger *slog.
 	}
 }
 
-func (c *SystemCollector) Describe(ch chan<- *prometheus.Desc) {
+func (c *systemCollector) Name() string { return "system" }
+
+func (c *systemCollector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- c.up
 	ch <- c.info
 	ch <- c.startTime
 	ch <- c.healthTotal
-	ch <- scrape.Duration
-	ch <- scrape.Success
 }
 
-func (c *SystemCollector) Collect(ch chan<- prometheus.Metric) {
-	start := time.Now()
-
+func (c *systemCollector) Update(ch chan<- prometheus.Metric) error {
 	ctx, cancel := context.WithTimeout(context.Background(), c.timeout)
 	defer cancel()
 
 	status, err := c.client.GetSystemStatus(ctx)
-	duration := time.Since(start).Seconds()
-
-	ch <- prometheus.MustNewConstMetric(scrape.Duration, prometheus.GaugeValue, duration, "system")
-
 	if err != nil {
-		c.logger.Error("system collector failed", "err", err)
-		ch <- prometheus.MustNewConstMetric(scrape.Success, prometheus.GaugeValue, 0, "system")
 		ch <- prometheus.MustNewConstMetric(c.up, prometheus.GaugeValue, 0)
-		return
+		return err
 	}
 
-	ch <- prometheus.MustNewConstMetric(scrape.Success, prometheus.GaugeValue, 1, "system")
 	ch <- prometheus.MustNewConstMetric(c.up, prometheus.GaugeValue, 1)
 
 	runtime := status.RuntimeName
@@ -90,8 +81,7 @@ func (c *SystemCollector) Collect(ch chan<- prometheus.Metric) {
 
 	health, err := c.client.GetHealth(ctx)
 	if err != nil {
-		c.logger.Error("health collector failed", "err", err)
-		return
+		return err
 	}
 
 	counts := make(map[[2]string]int)
@@ -101,4 +91,6 @@ func (c *SystemCollector) Collect(ch chan<- prometheus.Metric) {
 	for key, count := range counts {
 		ch <- prometheus.MustNewConstMetric(c.healthTotal, prometheus.GaugeValue, float64(count), key[0], key[1])
 	}
+
+	return nil
 }

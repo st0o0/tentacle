@@ -1,8 +1,17 @@
 package collector
 
 import (
+	"log/slog"
+	"time"
+
 	"github.com/prometheus/client_golang/prometheus"
 )
+
+type SubCollector interface {
+	Name() string
+	Describe(ch chan<- *prometheus.Desc)
+	Update(ch chan<- prometheus.Metric) error
+}
 
 type ScrapeDescs struct {
 	Duration *prometheus.Desc
@@ -21,5 +30,44 @@ func NewScrapeDescs(namespace string) ScrapeDescs {
 			"Whether a collector scrape was successful.",
 			[]string{"collector"}, nil,
 		),
+	}
+}
+
+type ServiceCollector struct {
+	scrape     ScrapeDescs
+	logger     *slog.Logger
+	collectors []SubCollector
+}
+
+func NewServiceCollector(namespace string, logger *slog.Logger, subs ...SubCollector) *ServiceCollector {
+	return &ServiceCollector{
+		scrape:     NewScrapeDescs(namespace),
+		logger:     logger,
+		collectors: subs,
+	}
+}
+
+func (sc *ServiceCollector) Describe(ch chan<- *prometheus.Desc) {
+	ch <- sc.scrape.Duration
+	ch <- sc.scrape.Success
+	for _, c := range sc.collectors {
+		c.Describe(ch)
+	}
+}
+
+func (sc *ServiceCollector) Collect(ch chan<- prometheus.Metric) {
+	for _, c := range sc.collectors {
+		start := time.Now()
+		err := c.Update(ch)
+		duration := time.Since(start).Seconds()
+
+		ch <- prometheus.MustNewConstMetric(sc.scrape.Duration, prometheus.GaugeValue, duration, c.Name())
+
+		success := 1.0
+		if err != nil {
+			success = 0
+			sc.logger.Error("collector failed", "collector", c.Name(), "err", err)
+		}
+		ch <- prometheus.MustNewConstMetric(sc.scrape.Success, prometheus.GaugeValue, success, c.Name())
 	}
 }

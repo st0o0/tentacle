@@ -9,18 +9,18 @@ import (
 	"github.com/st0o0/tentacle/internal/client/jellyfin"
 )
 
-type ActivityCollector struct {
+type activityCollector struct {
 	client  *jellyfin.Client
 	timeout time.Duration
 	logger  *slog.Logger
 
-	totalEntries   *prometheus.Desc
-	entriesByType  *prometheus.Desc
-	latestEntry    *prometheus.Desc
+	totalEntries  *prometheus.Desc
+	entriesByType *prometheus.Desc
+	latestEntry   *prometheus.Desc
 }
 
-func NewActivityCollector(client *jellyfin.Client, timeout time.Duration, logger *slog.Logger) *ActivityCollector {
-	return &ActivityCollector{
+func newActivityCollector(client *jellyfin.Client, timeout time.Duration, logger *slog.Logger) *activityCollector {
+	return &activityCollector{
 		client:  client,
 		timeout: timeout,
 		logger:  logger,
@@ -42,32 +42,22 @@ func NewActivityCollector(client *jellyfin.Client, timeout time.Duration, logger
 	}
 }
 
-func (c *ActivityCollector) Describe(ch chan<- *prometheus.Desc) {
+func (c *activityCollector) Name() string { return "activity" }
+
+func (c *activityCollector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- c.totalEntries
 	ch <- c.entriesByType
 	ch <- c.latestEntry
-	ch <- scrape.Duration
-	ch <- scrape.Success
 }
 
-func (c *ActivityCollector) Collect(ch chan<- prometheus.Metric) {
-	start := time.Now()
-
+func (c *activityCollector) Update(ch chan<- prometheus.Metric) error {
 	ctx, cancel := context.WithTimeout(context.Background(), c.timeout)
 	defer cancel()
 
 	resp, err := c.client.GetActivityLog(ctx, 100)
-	duration := time.Since(start).Seconds()
-
-	ch <- prometheus.MustNewConstMetric(scrape.Duration, prometheus.GaugeValue, duration, "activity")
-
 	if err != nil {
-		c.logger.Error("activity collector failed", "err", err)
-		ch <- prometheus.MustNewConstMetric(scrape.Success, prometheus.GaugeValue, 0, "activity")
-		return
+		return err
 	}
-
-	ch <- prometheus.MustNewConstMetric(scrape.Success, prometheus.GaugeValue, 1, "activity")
 
 	severityCounts := map[string]float64{
 		"Information": 0,
@@ -100,4 +90,5 @@ func (c *ActivityCollector) Collect(ch chan<- prometheus.Metric) {
 	if !latestTime.IsZero() {
 		ch <- prometheus.MustNewConstMetric(c.latestEntry, prometheus.GaugeValue, float64(latestTime.Unix()))
 	}
+	return nil
 }

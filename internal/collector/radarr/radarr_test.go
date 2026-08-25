@@ -10,6 +10,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
 	"github.com/st0o0/tentacle/internal/client/arr"
+	"github.com/st0o0/tentacle/internal/collector"
 )
 
 func newTestServer() *httptest.Server {
@@ -47,12 +48,14 @@ func newClient(url string) *arr.Client {
 	return arr.NewClient(url, "test-api-key", http.DefaultClient)
 }
 
-// gather collects metrics from a collector and returns them keyed by fqName.
-// For metrics with labels, the key is fqName::labelName=labelValue.
-func gather(t *testing.T, c prometheus.Collector) map[string]float64 {
+// gather wraps a SubCollector in a ServiceCollector, collects metrics, and
+// returns them keyed by fqName. For metrics with labels, the key is
+// fqName::labelName=labelValue.
+func gather(t *testing.T, sc collector.SubCollector) map[string]float64 {
 	t.Helper()
+	svc := collector.NewServiceCollector(namespace, slog.Default(), sc)
 	reg := prometheus.NewRegistry()
-	reg.MustRegister(c)
+	reg.MustRegister(svc)
 	families, err := reg.Gather()
 	if err != nil {
 		t.Fatalf("gather: %v", err)
@@ -92,7 +95,7 @@ func TestSystemCollector(t *testing.T) {
 	srv := newTestServer()
 	defer srv.Close()
 
-	m := gather(t, NewSystemCollector(newClient(srv.URL), 5*time.Second, slog.Default()))
+	m := gather(t, newSystemCollector(newClient(srv.URL), 5*time.Second, slog.Default()))
 
 	assertMetric(t, m, "radarr_up", 1)
 	assertMetric(t, m, "radarr_system_info::branch=main::runtime=docker::version=5.3.6", 1)
@@ -104,7 +107,7 @@ func TestMoviesCollector(t *testing.T) {
 	srv := newTestServer()
 	defer srv.Close()
 
-	m := gather(t, NewMoviesCollector(newClient(srv.URL), 5*time.Second, slog.Default()))
+	m := gather(t, newMoviesCollector(newClient(srv.URL), 5*time.Second, slog.Default()))
 
 	assertMetric(t, m, "radarr_movies_total", 3)
 	assertMetric(t, m, "radarr_movies_monitored_total", 2)
@@ -118,7 +121,7 @@ func TestQueueCollector(t *testing.T) {
 	srv := newTestServer()
 	defer srv.Close()
 
-	m := gather(t, NewQueueCollector(newClient(srv.URL), 5*time.Second, slog.Default()))
+	m := gather(t, newQueueCollector(newClient(srv.URL), 5*time.Second, slog.Default()))
 
 	assertMetric(t, m, "radarr_queue_total", 3)
 	assertMetric(t, m, "radarr_scrape_success::collector=queue", 1)
@@ -128,7 +131,7 @@ func TestDiskCollector(t *testing.T) {
 	srv := newTestServer()
 	defer srv.Close()
 
-	m := gather(t, NewDiskCollector(newClient(srv.URL), 5*time.Second, slog.Default()))
+	m := gather(t, newDiskCollector(newClient(srv.URL), 5*time.Second, slog.Default()))
 
 	assertMetric(t, m, "radarr_disk_total_bytes::path=/movies", 1000000000000)
 	assertMetric(t, m, "radarr_disk_free_bytes::path=/movies", 500000000000)
@@ -141,7 +144,7 @@ func TestCalendarCollector(t *testing.T) {
 	srv := newTestServer()
 	defer srv.Close()
 
-	m := gather(t, NewCalendarCollector(newClient(srv.URL), 5*time.Second, slog.Default()))
+	m := gather(t, newCalendarCollector(newClient(srv.URL), 5*time.Second, slog.Default()))
 
 	assertMetric(t, m, "radarr_calendar_upcoming_total", 2)
 	assertMetric(t, m, "radarr_scrape_success::collector=calendar", 1)

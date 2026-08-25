@@ -9,17 +9,17 @@ import (
 	"github.com/st0o0/tentacle/internal/client/audiobookshelf"
 )
 
-type BackupsCollector struct {
+type backupsCollector struct {
 	client  *audiobookshelf.Client
 	timeout time.Duration
 	logger  *slog.Logger
 
-	backupsTotal   *prometheus.Desc
-	latestBackup   *prometheus.Desc
+	backupsTotal *prometheus.Desc
+	latestBackup *prometheus.Desc
 }
 
-func NewBackupsCollector(client *audiobookshelf.Client, timeout time.Duration, logger *slog.Logger) *BackupsCollector {
-	return &BackupsCollector{
+func newBackupsCollector(client *audiobookshelf.Client, timeout time.Duration, logger *slog.Logger) *backupsCollector {
+	return &backupsCollector{
 		client:  client,
 		timeout: timeout,
 		logger:  logger,
@@ -36,31 +36,24 @@ func NewBackupsCollector(client *audiobookshelf.Client, timeout time.Duration, l
 	}
 }
 
-func (c *BackupsCollector) Describe(ch chan<- *prometheus.Desc) {
-	ch <- c.backupsTotal
-	ch <- c.latestBackup
-	ch <- scrape.Duration
-	ch <- scrape.Success
+func (c *backupsCollector) Name() string {
+	return "backups"
 }
 
-func (c *BackupsCollector) Collect(ch chan<- prometheus.Metric) {
-	start := time.Now()
+func (c *backupsCollector) Describe(ch chan<- *prometheus.Desc) {
+	ch <- c.backupsTotal
+	ch <- c.latestBackup
+}
 
+func (c *backupsCollector) Update(ch chan<- prometheus.Metric) error {
 	ctx, cancel := context.WithTimeout(context.Background(), c.timeout)
 	defer cancel()
 
 	resp, err := c.client.GetBackups(ctx)
-	duration := time.Since(start).Seconds()
-
-	ch <- prometheus.MustNewConstMetric(scrape.Duration, prometheus.GaugeValue, duration, "backups")
-
 	if err != nil {
-		c.logger.Error("backups collector failed", "err", err)
-		ch <- prometheus.MustNewConstMetric(scrape.Success, prometheus.GaugeValue, 0, "backups")
-		return
+		return err
 	}
 
-	ch <- prometheus.MustNewConstMetric(scrape.Success, prometheus.GaugeValue, 1, "backups")
 	ch <- prometheus.MustNewConstMetric(c.backupsTotal, prometheus.GaugeValue, float64(len(resp.Backups)))
 
 	if len(resp.Backups) > 0 {
@@ -72,4 +65,6 @@ func (c *BackupsCollector) Collect(ch chan<- prometheus.Metric) {
 		}
 		ch <- prometheus.MustNewConstMetric(c.latestBackup, prometheus.GaugeValue, float64(maxCreatedAt)/1000.0)
 	}
+
+	return nil
 }
