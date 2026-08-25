@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.2](https://github.com/st0o0/tentacle/compare/v0.1.1...v0.1.2) (2026-08-25)
+
+
+### Bug Fixes
+
+* audiobookshelf users unmarshal and prowlarr API version ([3ccb753](https://github.com/st0o0/tentacle/commit/3ccb7532ce47b40e6c5b84012807797dbde6f063))
+* skip unsupported jellyfin libraries and add service name to error logs ([361ff95](https://github.com/st0o0/tentacle/commit/361ff95fb84f576f3ccc753e4be1fec6f0e4d0e0))
+
 ## [0.1.1](https://github.com/st0o0/tentacle/compare/v0.1.0...v0.1.1) (2026-08-25)
 
 
