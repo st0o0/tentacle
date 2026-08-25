@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.1](https://github.com/st0o0/tentacle/compare/v0.1.0...v0.1.1) (2026-08-25)
+
+
+### Bug Fixes
+
+* use meta-collector pattern to fix duplicate descriptor panic ([140e0e8](https://github.com/st0o0/tentacle/commit/140e0e8e1e46fc486eb02ea915468927c8ea1fd6))
+
 ## [0.1.0](https://github.com/st0o0/tentacle/compare/v0.1.0...v0.1.0) (2026-08-24)
 
 
