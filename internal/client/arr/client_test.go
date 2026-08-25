@@ -35,7 +35,7 @@ func newTestServer(t *testing.T, statusCode int, body any) (*httptest.Server, *r
 
 func TestAuthHeader(t *testing.T) {
 	srv, rec := newTestServer(t, http.StatusOK, &SystemStatus{Version: "4.0"})
-	c := NewClient(srv.URL, "test-key-123", srv.Client())
+	c := NewClient(srv.URL, "test-key-123", "v3", srv.Client())
 
 	_, _ = c.GetSystemStatus(context.Background())
 
@@ -48,7 +48,7 @@ func TestAuthHeader(t *testing.T) {
 func TestURLConstruction(t *testing.T) {
 	srv, rec := newTestServer(t, http.StatusOK, &SystemStatus{})
 
-	c := NewClient(srv.URL+"/", "key", srv.Client())
+	c := NewClient(srv.URL+"/", "key", "v3", srv.Client())
 	_, _ = c.GetSystemStatus(context.Background())
 
 	want := "/api/v3/system/status"
@@ -59,7 +59,7 @@ func TestURLConstruction(t *testing.T) {
 
 func TestErrorHandling(t *testing.T) {
 	srv, _ := newTestServer(t, http.StatusUnauthorized, nil)
-	c := NewClient(srv.URL, "bad-key", srv.Client())
+	c := NewClient(srv.URL, "bad-key", "v3", srv.Client())
 
 	_, err := c.GetSystemStatus(context.Background())
 	if err == nil {
@@ -79,7 +79,7 @@ func TestGetSystemStatus(t *testing.T) {
 		StartTime: "2024-01-01T00:00:00Z",
 	}
 	srv, _ := newTestServer(t, http.StatusOK, &payload)
-	c := NewClient(srv.URL, "key", srv.Client())
+	c := NewClient(srv.URL, "key", "v3", srv.Client())
 
 	status, err := c.GetSystemStatus(context.Background())
 	if err != nil {
@@ -99,7 +99,7 @@ func TestGetHealth(t *testing.T) {
 			{Source: "IndexerCheck", Type: "warning", Message: "no indexers"},
 		}
 		srv, _ := newTestServer(t, http.StatusOK, payload)
-		c := NewClient(srv.URL, "key", srv.Client())
+		c := NewClient(srv.URL, "key", "v3", srv.Client())
 
 		checks, err := c.GetHealth(context.Background())
 		if err != nil {
@@ -115,7 +115,7 @@ func TestGetHealth(t *testing.T) {
 
 	t.Run("empty array", func(t *testing.T) {
 		srv, _ := newTestServer(t, http.StatusOK, []HealthCheck{})
-		c := NewClient(srv.URL, "key", srv.Client())
+		c := NewClient(srv.URL, "key", "v3", srv.Client())
 
 		checks, err := c.GetHealth(context.Background())
 		if err != nil {
@@ -129,7 +129,7 @@ func TestGetHealth(t *testing.T) {
 
 func TestGetQueueParams(t *testing.T) {
 	srv, rec := newTestServer(t, http.StatusOK, &QueueResponse{TotalRecords: 5})
-	c := NewClient(srv.URL, "key", srv.Client())
+	c := NewClient(srv.URL, "key", "v3", srv.Client())
 
 	resp, err := c.GetQueue(context.Background())
 	if err != nil {
@@ -158,7 +158,7 @@ func TestGetRootFolders(t *testing.T) {
 		{Path: "/data/tv", FreeSpace: 2000000, TotalSpace: 8000000},
 	}
 	srv, _ := newTestServer(t, http.StatusOK, payload)
-	c := NewClient(srv.URL, "key", srv.Client())
+	c := NewClient(srv.URL, "key", "v3", srv.Client())
 
 	folders, err := c.GetRootFolders(context.Background())
 	if err != nil {

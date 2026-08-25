@@ -45,7 +45,7 @@ func newTestServer() *httptest.Server {
 }
 
 func newClient(url string) *arr.Client {
-	return arr.NewClient(url, "test-api-key", http.DefaultClient)
+	return arr.NewClient(url, "test-api-key", "v3", http.DefaultClient)
 }
 
 // gather wraps a SubCollector in a ServiceCollector, collects metrics, and

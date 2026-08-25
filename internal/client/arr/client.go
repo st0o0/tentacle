@@ -13,19 +13,21 @@ import (
 type Client struct {
 	baseURL    string
 	apiKey     string
+	apiVersion string
 	httpClient *http.Client
 }
 
-func NewClient(baseURL, apiKey string, httpClient *http.Client) *Client {
+func NewClient(baseURL, apiKey, apiVersion string, httpClient *http.Client) *Client {
 	return &Client{
 		baseURL:    strings.TrimRight(baseURL, "/"),
 		apiKey:     apiKey,
+		apiVersion: apiVersion,
 		httpClient: httpClient,
 	}
 }
 
 func (c *Client) get(ctx context.Context, path string, query url.Values, target any) error {
-	u := c.baseURL + "/api/v3" + path
+	u := c.baseURL + "/api/" + c.apiVersion + path
 	if len(query) > 0 {
 		u += "?" + query.Encode()
 	}

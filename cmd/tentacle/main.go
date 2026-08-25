@@ -78,19 +78,19 @@ func main() {
 	}
 
 	if cfg.Sonarr != nil {
-		client := arr.NewClient(cfg.Sonarr.Address, cfg.Sonarr.Token, httpClient)
+		client := arr.NewClient(cfg.Sonarr.Address, cfg.Sonarr.Token, "v3", httpClient)
 		reg.MustRegister(sonarrcollector.NewCollector(client, cfg.ScrapeTimeout, logger))
 		logger.Info("registered sonarr collectors", "addr", cfg.Sonarr.Address)
 	}
 
 	if cfg.Radarr != nil {
-		client := arr.NewClient(cfg.Radarr.Address, cfg.Radarr.Token, httpClient)
+		client := arr.NewClient(cfg.Radarr.Address, cfg.Radarr.Token, "v3", httpClient)
 		reg.MustRegister(radarrcollector.NewCollector(client, cfg.ScrapeTimeout, logger))
 		logger.Info("registered radarr collectors", "addr", cfg.Radarr.Address)
 	}
 
 	if cfg.Prowlarr != nil {
-		client := arr.NewClient(cfg.Prowlarr.Address, cfg.Prowlarr.Token, httpClient)
+		client := arr.NewClient(cfg.Prowlarr.Address, cfg.Prowlarr.Token, "v1", httpClient)
 		reg.MustRegister(prowlarrcollector.NewCollector(client, cfg.ScrapeTimeout, logger))
 		logger.Info("registered prowlarr collectors", "addr", cfg.Prowlarr.Address)
 	}

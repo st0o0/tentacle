@@ -92,11 +92,13 @@ func (c *Client) GetLibraryStats(ctx context.Context, libraryID string) (*Librar
 }
 
 func (c *Client) GetUsers(ctx context.Context) ([]User, error) {
-	var users []User
-	if err := c.get(ctx, "/api/users", &users); err != nil {
+	var resp struct {
+		Users []User `json:"users"`
+	}
+	if err := c.get(ctx, "/api/users", &resp); err != nil {
 		return nil, fmt.Errorf("get users: %w", err)
 	}
-	return users, nil
+	return resp.Users, nil
 }
 
 func (c *Client) GetOnlineUsers(ctx context.Context) ([]OnlineUser, error) {

@@ -110,7 +110,7 @@ func TestUsersCollector(t *testing.T) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/users", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`[{"id":"u1","username":"alice","type":"admin","isActive":true,"lastSeen":1700000000000,"createdAt":1690000000000},{"id":"u2","username":"bob","type":"user","isActive":false,"lastSeen":1700500000000,"createdAt":1690000000000}]`))
+		_, _ = w.Write([]byte(`{"users":[{"id":"u1","username":"alice","type":"admin","isActive":true,"lastSeen":1700000000000,"createdAt":1690000000000},{"id":"u2","username":"bob","type":"user","isActive":false,"lastSeen":1700500000000,"createdAt":1690000000000}]}`))
 	})
 	mux.HandleFunc("/api/users/u1/listening-stats", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")

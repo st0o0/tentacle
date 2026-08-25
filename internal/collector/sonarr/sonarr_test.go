@@ -36,7 +36,7 @@ func newTestServer(t *testing.T, responses map[string]any) *httptest.Server {
 }
 
 func newClient(serverURL string) *arr.Client {
-	return arr.NewClient(serverURL, "test-api-key", http.DefaultClient)
+	return arr.NewClient(serverURL, "test-api-key", "v3", http.DefaultClient)
 }
 
 func wrapSub(sc collector.SubCollector) *collector.ServiceCollector {
