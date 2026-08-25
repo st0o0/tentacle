@@ -34,6 +34,7 @@ func NewScrapeDescs(namespace string) ScrapeDescs {
 }
 
 type ServiceCollector struct {
+	namespace  string
 	scrape     ScrapeDescs
 	logger     *slog.Logger
 	collectors []SubCollector
@@ -41,6 +42,7 @@ type ServiceCollector struct {
 
 func NewServiceCollector(namespace string, logger *slog.Logger, subs ...SubCollector) *ServiceCollector {
 	return &ServiceCollector{
+		namespace:  namespace,
 		scrape:     NewScrapeDescs(namespace),
 		logger:     logger,
 		collectors: subs,
@@ -66,7 +68,7 @@ func (sc *ServiceCollector) Collect(ch chan<- prometheus.Metric) {
 		success := 1.0
 		if err != nil {
 			success = 0
-			sc.logger.Error("collector failed", "collector", c.Name(), "err", err)
+			sc.logger.Error("collector failed", "service", sc.namespace, "collector", c.Name(), "err", err)
 		}
 		ch <- prometheus.MustNewConstMetric(sc.scrape.Success, prometheus.GaugeValue, success, c.Name())
 	}

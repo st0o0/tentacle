@@ -62,6 +62,12 @@ func main() {
 	if cfg.Jellyfin != nil {
 		client := jellyfin.NewClient(cfg.Jellyfin.Address, cfg.Jellyfin.Token, httpClient)
 
+		resolveCtx, resolveCancel := context.WithTimeout(context.Background(), cfg.ScrapeTimeout)
+		if err := client.ResolveUserID(resolveCtx); err != nil {
+			logger.Warn("failed to resolve jellyfin user id, /Items/Latest may not work", "err", err)
+		}
+		resolveCancel()
+
 		var opts []jellyfincollector.Option
 		probeCtx, probeCancel := context.WithTimeout(context.Background(), cfg.ScrapeTimeout)
 		_, probeErr := client.GetPlaybackActivity(probeCtx, 1)

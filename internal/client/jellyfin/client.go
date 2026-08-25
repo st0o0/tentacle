@@ -14,6 +14,7 @@ import (
 type Client struct {
 	baseURL    string
 	token      string
+	userID     string
 	httpClient *http.Client
 }
 
@@ -23,6 +24,18 @@ func NewClient(baseURL, token string, httpClient *http.Client) *Client {
 		token:      token,
 		httpClient: httpClient,
 	}
+}
+
+func (c *Client) ResolveUserID(ctx context.Context) error {
+	users, err := c.GetUsers(ctx)
+	if err != nil {
+		return fmt.Errorf("resolve user id: %w", err)
+	}
+	if len(users) == 0 {
+		return fmt.Errorf("resolve user id: no users found")
+	}
+	c.userID = users[0].Id
+	return nil
 }
 
 func (c *Client) get(ctx context.Context, path string, query url.Values, target any) error {
@@ -122,6 +135,9 @@ func (c *Client) GetLatestItems(ctx context.Context, parentID string, limit int)
 	q := url.Values{}
 	if parentID != "" {
 		q.Set("ParentId", parentID)
+	}
+	if c.userID != "" {
+		q.Set("UserId", c.userID)
 	}
 	q.Set("Limit", strconv.Itoa(limit))
 
