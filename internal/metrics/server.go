@@ -20,7 +20,7 @@ func ListenAndServe(ctx context.Context, addr string, reg *prometheus.Registry, 
 	}
 
 	metricsHandler := promhttp.HandlerFor(reg, promhttp.HandlerOpts{
-		Timeout:       timeout,
+		Timeout:       2 * timeout,
 		ErrorHandling: promhttp.ContinueOnError,
 	})
 

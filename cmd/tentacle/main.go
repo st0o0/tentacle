@@ -79,7 +79,7 @@ func main() {
 			logger.Info("playback collector disabled (PlaybackReporting plugin not found)")
 		}
 
-		reg.MustRegister(jellyfincollector.NewCollector(client, cfg.ScrapeTimeout, logger, opts...))
+		reg.MustRegister(jellyfincollector.NewCollector(client, cfg.ScrapeTimeout, cfg.JellyfinBatchSize, logger, opts...))
 		logger.Info("registered jellyfin collectors", "addr", cfg.Jellyfin.Address)
 	}
 

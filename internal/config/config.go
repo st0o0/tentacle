@@ -21,26 +21,28 @@ type Config struct {
 	Prowlarr       *ServiceConfig
 	Audiobookshelf *ServiceConfig
 	Seerr          *ServiceConfig
-	ListenAddress string
-	ScrapeTimeout time.Duration
-	LogLevel      slog.Level
-	LogFormat     string
+	ListenAddress       string
+	ScrapeTimeout       time.Duration
+	JellyfinBatchSize   int
+	LogLevel            slog.Level
+	LogFormat           string
 }
 
 func Load(getenv func(string) string) (Config, error) {
 	r := &envReader{getenv: getenv}
 
 	cfg := Config{
-		Jellyfin:        r.service("TENTACLE_JELLYFIN_ADDRESS", "TENTACLE_JELLYFIN_TOKEN"),
-		Sonarr:          r.service("TENTACLE_SONARR_ADDRESS", "TENTACLE_SONARR_TOKEN"),
-		Radarr:          r.service("TENTACLE_RADARR_ADDRESS", "TENTACLE_RADARR_TOKEN"),
-		Prowlarr:        r.service("TENTACLE_PROWLARR_ADDRESS", "TENTACLE_PROWLARR_TOKEN"),
-		Audiobookshelf:  r.service("TENTACLE_AUDIOBOOKSHELF_ADDRESS", "TENTACLE_AUDIOBOOKSHELF_TOKEN"),
-		Seerr:           r.service("TENTACLE_SEERR_ADDRESS", "TENTACLE_SEERR_TOKEN"),
-		ListenAddress:   r.str("TENTACLE_LISTEN_ADDRESS", ":9594"),
-		ScrapeTimeout:   r.duration("TENTACLE_SCRAPE_TIMEOUT", 10*time.Second),
-		LogLevel:        r.logLevel("TENTACLE_LOG_LEVEL", slog.LevelInfo),
-		LogFormat:       r.logFormat("TENTACLE_LOG_FORMAT", "json"),
+		Jellyfin:          r.service("TENTACLE_JELLYFIN_ADDRESS", "TENTACLE_JELLYFIN_TOKEN"),
+		Sonarr:            r.service("TENTACLE_SONARR_ADDRESS", "TENTACLE_SONARR_TOKEN"),
+		Radarr:            r.service("TENTACLE_RADARR_ADDRESS", "TENTACLE_RADARR_TOKEN"),
+		Prowlarr:          r.service("TENTACLE_PROWLARR_ADDRESS", "TENTACLE_PROWLARR_TOKEN"),
+		Audiobookshelf:    r.service("TENTACLE_AUDIOBOOKSHELF_ADDRESS", "TENTACLE_AUDIOBOOKSHELF_TOKEN"),
+		Seerr:             r.service("TENTACLE_SEERR_ADDRESS", "TENTACLE_SEERR_TOKEN"),
+		ListenAddress:     r.str("TENTACLE_LISTEN_ADDRESS", ":9594"),
+		ScrapeTimeout:     r.duration("TENTACLE_SCRAPE_TIMEOUT", 10*time.Second),
+		JellyfinBatchSize: r.positiveInt("TENTACLE_JELLYFIN_BATCH_SIZE", 5000),
+		LogLevel:          r.logLevel("TENTACLE_LOG_LEVEL", slog.LevelInfo),
+		LogFormat:         r.logFormat("TENTACLE_LOG_FORMAT", "json"),
 	}
 
 	if r.err == nil && cfg.Jellyfin == nil && cfg.Sonarr == nil && cfg.Radarr == nil && cfg.Prowlarr == nil && cfg.Audiobookshelf == nil && cfg.Seerr == nil {
@@ -88,6 +90,23 @@ func (r *envReader) service(addressKey, tokenKey string) *ServiceConfig {
 	}
 
 	return &ServiceConfig{Address: addr, Token: token}
+}
+
+func (r *envReader) positiveInt(key string, defaultVal int) int {
+	v := r.getenv(key)
+	if v == "" {
+		return defaultVal
+	}
+	n, err := strconv.Atoi(v)
+	if err != nil {
+		r.setErr(fmt.Errorf("%s: invalid integer %q", key, v))
+		return defaultVal
+	}
+	if n <= 0 {
+		r.setErr(fmt.Errorf("%s: must be positive, got %d", key, n))
+		return defaultVal
+	}
+	return n
 }
 
 func (r *envReader) duration(key string, defaultVal time.Duration) time.Duration {

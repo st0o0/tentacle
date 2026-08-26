@@ -22,7 +22,7 @@ func WithPlayback(enabled bool) Option {
 	}
 }
 
-func NewCollector(client *jellyfin.Client, timeout time.Duration, logger *slog.Logger, opts ...Option) *collector.ServiceCollector {
+func NewCollector(client *jellyfin.Client, timeout time.Duration, batchSize int, logger *slog.Logger, opts ...Option) *collector.ServiceCollector {
 	var o options
 	for _, opt := range opts {
 		opt(&o)
@@ -32,7 +32,7 @@ func NewCollector(client *jellyfin.Client, timeout time.Duration, logger *slog.L
 		newSystemCollector(client, timeout, logger),
 		newUsersCollector(client, timeout, logger),
 		newSessionsCollector(client, timeout, logger),
-		newLibraryCollector(client, timeout, logger),
+		newLibraryCollector(client, timeout, batchSize, logger),
 		newTasksCollector(client, timeout, logger),
 		newActivityCollector(client, timeout, logger),
 		newPluginsCollector(client, timeout, logger),

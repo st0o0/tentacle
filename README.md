@@ -279,6 +279,7 @@ All collectors also emit `<namespace>_scrape_duration_seconds{collector}` and
 | `TENTACLE_SEERR_TOKEN` | | Seerr API key |
 | `TENTACLE_LISTEN_ADDRESS` | `:9594` | Metrics listen address |
 | `TENTACLE_SCRAPE_TIMEOUT` | `10s` | Per-collector timeout (seconds or Go duration) |
+| `TENTACLE_JELLYFIN_BATCH_SIZE` | `5000` | Items per page when calculating library sizes |
 | `TENTACLE_LOG_LEVEL` | `info` | Log level: debug, info, warn, error |
 | `TENTACLE_LOG_FORMAT` | `json` | Log format: json, text |
 

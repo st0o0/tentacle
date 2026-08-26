@@ -16,20 +16,22 @@ var itemTypes = []string{
 }
 
 type libraryCollector struct {
-	client  *jellyfin.Client
-	timeout time.Duration
-	logger  *slog.Logger
+	client    *jellyfin.Client
+	timeout   time.Duration
+	batchSize int
+	logger    *slog.Logger
 
 	itemsTotal  *prometheus.Desc
 	sizeBytes   *prometheus.Desc
 	latestAdded *prometheus.Desc
 }
 
-func newLibraryCollector(client *jellyfin.Client, timeout time.Duration, logger *slog.Logger) *libraryCollector {
+func newLibraryCollector(client *jellyfin.Client, timeout time.Duration, batchSize int, logger *slog.Logger) *libraryCollector {
 	return &libraryCollector{
-		client:  client,
-		timeout: timeout,
-		logger:  logger,
+		client:    client,
+		timeout:   timeout,
+		batchSize: batchSize,
+		logger:    logger,
 		itemsTotal: prometheus.NewDesc(
 			prometheus.BuildFQName(namespace, "library", "items_total"),
 			"Total number of items in a library by type.",
@@ -97,12 +99,11 @@ func (c *libraryCollector) Update(ch chan<- prometheus.Metric) error {
 }
 
 func (c *libraryCollector) librarySize(ctx context.Context, parentID string) (int64, error) {
-	const batchSize = 500
 	var total int64
 	startIndex := 0
 
 	for {
-		resp, err := c.client.GetItems(ctx, parentID, "", "Size", batchSize, startIndex)
+		resp, err := c.client.GetItems(ctx, parentID, "", "Size", c.batchSize, startIndex)
 		if err != nil {
 			return 0, err
 		}
