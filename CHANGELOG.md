@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.4](https://github.com/st0o0/tentacle/compare/v0.1.3...v0.1.4) (2026-08-26)
+
+
+### Features
+
+* parallel collectors, scrape timeout, and request logging ([33c4278](https://github.com/st0o0/tentacle/commit/33c4278a3958baf66da29f54b2283b9e3468e090))
+
 ## [0.1.3](https://github.com/st0o0/tentacle/compare/v0.1.2...v0.1.3) (2026-08-26)
 
 
