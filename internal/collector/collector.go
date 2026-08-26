@@ -1,11 +1,24 @@
 package collector
 
 import (
+	"context"
+	"errors"
 	"log/slog"
+	"net/http"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/st0o0/tentacle/internal/client"
 )
+
+func isTransientError(err error) bool {
+	if client.IsStatusCode(err, http.StatusBadGateway) ||
+		client.IsStatusCode(err, http.StatusServiceUnavailable) ||
+		client.IsStatusCode(err, http.StatusGatewayTimeout) {
+		return true
+	}
+	return errors.Is(err, context.DeadlineExceeded)
+}
 
 type SubCollector interface {
 	Name() string
@@ -68,7 +81,11 @@ func (sc *ServiceCollector) Collect(ch chan<- prometheus.Metric) {
 		success := 1.0
 		if err != nil {
 			success = 0
-			sc.logger.Error("collector failed", "service", sc.namespace, "collector", c.Name(), "err", err)
+			if isTransientError(err) {
+				sc.logger.Warn("collector failed", "service", sc.namespace, "collector", c.Name(), "err", err)
+			} else {
+				sc.logger.Error("collector failed", "service", sc.namespace, "collector", c.Name(), "err", err)
+			}
 		}
 		ch <- prometheus.MustNewConstMetric(sc.scrape.Success, prometheus.GaugeValue, success, c.Name())
 	}

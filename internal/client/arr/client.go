@@ -8,6 +8,8 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+
+	"github.com/st0o0/tentacle/internal/client"
 )
 
 type Client struct {
@@ -46,7 +48,7 @@ func (c *Client) get(ctx context.Context, path string, query url.Values, target 
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
-		return fmt.Errorf("unexpected status %d: %s", resp.StatusCode, string(body))
+		return client.NewStatusError(resp.StatusCode, string(body))
 	}
 
 	if err := json.NewDecoder(resp.Body).Decode(target); err != nil {

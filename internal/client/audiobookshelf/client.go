@@ -7,6 +7,8 @@ import (
 	"io"
 	"net/http"
 	"strings"
+
+	"github.com/st0o0/tentacle/internal/client"
 )
 
 type Client struct {
@@ -40,7 +42,7 @@ func (c *Client) get(ctx context.Context, path string, target any) error {
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
-		return fmt.Errorf("unexpected status %d: %s", resp.StatusCode, string(body))
+		return client.NewStatusError(resp.StatusCode, string(body))
 	}
 
 	if err := json.NewDecoder(resp.Body).Decode(target); err != nil {
@@ -60,7 +62,7 @@ func (c *Client) Ping(ctx context.Context) error {
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("unexpected status %d", resp.StatusCode)
+		return client.NewStatusError(resp.StatusCode, "")
 	}
 	return nil
 }
