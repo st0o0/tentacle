@@ -113,9 +113,9 @@ func main() {
 		logger.Info("registered seerr collectors", "addr", cfg.Seerr.Address)
 	}
 
-	logger.Info("starting tentacle", "version", version, "addr", cfg.ListenAddress)
+	logger.Info("starting tentacle", "version", version, "addr", cfg.ListenAddress, "scrape_timeout", cfg.ScrapeTimeout.String())
 
-	if err := metrics.ListenAndServe(ctx, cfg.ListenAddress, reg, version, logger); err != nil {
+	if err := metrics.ListenAndServe(ctx, cfg.ListenAddress, reg, cfg.ScrapeTimeout, version, logger); err != nil {
 		logger.Error("server failed", "err", err)
 		os.Exit(1)
 	}

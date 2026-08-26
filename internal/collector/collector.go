@@ -4,7 +4,9 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"net"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -17,7 +19,11 @@ func isTransientError(err error) bool {
 		client.IsStatusCode(err, http.StatusGatewayTimeout) {
 		return true
 	}
-	return errors.Is(err, context.DeadlineExceeded)
+	if errors.Is(err, context.DeadlineExceeded) {
+		return true
+	}
+	var opErr *net.OpError
+	return errors.As(err, &opErr)
 }
 
 type SubCollector interface {
@@ -71,22 +77,32 @@ func (sc *ServiceCollector) Describe(ch chan<- *prometheus.Desc) {
 }
 
 func (sc *ServiceCollector) Collect(ch chan<- prometheus.Metric) {
+	serviceStart := time.Now()
+
+	var wg sync.WaitGroup
 	for _, c := range sc.collectors {
-		start := time.Now()
-		err := c.Update(ch)
-		duration := time.Since(start).Seconds()
+		wg.Add(1)
+		go func(c SubCollector) {
+			defer wg.Done()
+			start := time.Now()
+			err := c.Update(ch)
+			duration := time.Since(start).Seconds()
 
-		ch <- prometheus.MustNewConstMetric(sc.scrape.Duration, prometheus.GaugeValue, duration, c.Name())
+			ch <- prometheus.MustNewConstMetric(sc.scrape.Duration, prometheus.GaugeValue, duration, c.Name())
 
-		success := 1.0
-		if err != nil {
-			success = 0
-			if isTransientError(err) {
-				sc.logger.Warn("collector failed", "service", sc.namespace, "collector", c.Name(), "err", err)
-			} else {
-				sc.logger.Error("collector failed", "service", sc.namespace, "collector", c.Name(), "err", err)
+			success := 1.0
+			if err != nil {
+				success = 0
+				if isTransientError(err) {
+					sc.logger.Warn("collector failed", "service", sc.namespace, "collector", c.Name(), "duration", duration, "err", err)
+				} else {
+					sc.logger.Error("collector failed", "service", sc.namespace, "collector", c.Name(), "duration", duration, "err", err)
+				}
 			}
-		}
-		ch <- prometheus.MustNewConstMetric(sc.scrape.Success, prometheus.GaugeValue, success, c.Name())
+			ch <- prometheus.MustNewConstMetric(sc.scrape.Success, prometheus.GaugeValue, success, c.Name())
+		}(c)
 	}
+	wg.Wait()
+
+	sc.logger.Debug("service collect complete", "service", sc.namespace, "duration", time.Since(serviceStart).Seconds())
 }

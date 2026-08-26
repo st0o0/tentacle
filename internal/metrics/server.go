@@ -13,14 +13,19 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
-func ListenAndServe(ctx context.Context, addr string, reg *prometheus.Registry, version string, logger *slog.Logger) error {
+func ListenAndServe(ctx context.Context, addr string, reg *prometheus.Registry, timeout time.Duration, version string, logger *slog.Logger) error {
 	ln, err := net.Listen("tcp", addr)
 	if err != nil {
 		return fmt.Errorf("listen %s: %w", addr, err)
 	}
 
+	metricsHandler := promhttp.HandlerFor(reg, promhttp.HandlerOpts{
+		Timeout:       timeout,
+		ErrorHandling: promhttp.ContinueOnError,
+	})
+
 	mux := http.NewServeMux()
-	mux.Handle("/metrics", promhttp.HandlerFor(reg, promhttp.HandlerOpts{}))
+	mux.Handle("/metrics", requestLogger(metricsHandler, logger))
 	mux.HandleFunc("/healthz", healthHandler(version))
 
 	srv := &http.Server{Handler: mux}
@@ -39,6 +44,25 @@ func ListenAndServe(ctx context.Context, addr string, reg *prometheus.Registry, 
 		return fmt.Errorf("serve: %w", err)
 	}
 	return nil
+}
+
+type statusWriter struct {
+	http.ResponseWriter
+	status int
+}
+
+func (w *statusWriter) WriteHeader(code int) {
+	w.status = code
+	w.ResponseWriter.WriteHeader(code)
+}
+
+func requestLogger(next http.Handler, logger *slog.Logger) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		start := time.Now()
+		sw := &statusWriter{ResponseWriter: w, status: http.StatusOK}
+		next.ServeHTTP(sw, r)
+		logger.Info("scrape complete", "status", sw.status, "duration", time.Since(start).Seconds(), "client", r.RemoteAddr)
+	})
 }
 
 func healthHandler(version string) http.HandlerFunc {
