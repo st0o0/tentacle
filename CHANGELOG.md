@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.3](https://github.com/st0o0/tentacle/compare/v0.1.2...v0.1.3) (2026-08-26)
+
+
+### Features
+
+* log transient errors (503, timeouts) as warn instead of error ([3ebcd95](https://github.com/st0o0/tentacle/commit/3ebcd95df3c22796e3d28409d8f4aec4dd515c41))
+
 ## [0.1.2](https://github.com/st0o0/tentacle/compare/v0.1.1...v0.1.2) (2026-08-25)
 
 
