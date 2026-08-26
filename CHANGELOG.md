@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.5](https://github.com/st0o0/tentacle/compare/v0.1.4...v0.1.5) (2026-08-26)
+
+
+### Bug Fixes
+
+* prevent empty scrapes by doubling handler timeout and configurable batch size ([1d78e7f](https://github.com/st0o0/tentacle/commit/1d78e7f820a87054762896ec39f0d0a4dea21629))
+
 ## [0.1.4](https://github.com/st0o0/tentacle/compare/v0.1.3...v0.1.4) (2026-08-26)
 
 
