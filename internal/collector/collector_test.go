@@ -1,9 +1,11 @@
 package collector
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"testing"
+	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
@@ -130,4 +132,78 @@ func TestServiceCollector_Empty(t *testing.T) {
 	if len(families) != 0 {
 		t.Errorf("expected no metrics, got %d families", len(families))
 	}
+}
+
+func TestCachedCollector_ServesCachedMetrics(t *testing.T) {
+	stub := newStub("cached", 99, false)
+	cc := NewCachedCollector(stub, time.Hour, slog.Default())
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go cc.Start(ctx)
+
+	// Wait for the initial refresh to complete.
+	time.Sleep(50 * time.Millisecond)
+
+	sc := NewServiceCollector("test", slog.Default(), cc)
+	families := gather(t, sc)
+	assertGauge(t, families, "test_cached_value", nil, 99)
+	assertGauge(t, families, "test_scrape_success", map[string]string{"collector": "cached"}, 1)
+}
+
+func TestCachedCollector_EmptyBeforeStart(t *testing.T) {
+	stub := newStub("lazy", 1, false)
+	cc := NewCachedCollector(stub, time.Hour, slog.Default())
+
+	ch := make(chan prometheus.Metric, 16)
+	err := cc.Update(ch)
+	close(ch)
+
+	if err != nil {
+		t.Errorf("expected nil error before start, got %v", err)
+	}
+	var count int
+	for range ch {
+		count++
+	}
+	if count != 0 {
+		t.Errorf("expected 0 metrics before start, got %d", count)
+	}
+}
+
+func TestCachedCollector_PropagatesError(t *testing.T) {
+	stub := newStub("failing", 0, true)
+	cc := NewCachedCollector(stub, time.Hour, slog.Default())
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go cc.Start(ctx)
+
+	time.Sleep(50 * time.Millisecond)
+
+	ch := make(chan prometheus.Metric, 16)
+	err := cc.Update(ch)
+	close(ch)
+
+	if err == nil {
+		t.Error("expected error from cached failing collector")
+	}
+}
+
+func TestCachedCollector_UpdatesOnTick(t *testing.T) {
+	stub := newStub("ticking", 10, false)
+	cc := NewCachedCollector(stub, 50*time.Millisecond, slog.Default())
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go cc.Start(ctx)
+
+	time.Sleep(30 * time.Millisecond)
+
+	stub.value = 20
+	time.Sleep(80 * time.Millisecond)
+
+	sc := NewServiceCollector("test", slog.Default(), cc)
+	families := gather(t, sc)
+	assertGauge(t, families, "test_ticking_value", nil, 20)
 }

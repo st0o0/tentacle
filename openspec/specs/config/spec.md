@@ -64,6 +64,25 @@ Each service SHALL have its own config block with address and token variables. A
 - **WHEN** `TENTACLE_SCRAPE_TIMEOUT=30s` is set with Jellyfin and Sonarr configured
 - **THEN** both services use the same 30-second scrape timeout
 
+### Requirement: Cache intervals
+`TENTACLE_CACHE_WARM_INTERVAL` (default `10m`) and `TENTACLE_CACHE_COLD_INTERVAL` (default `30m`) SHALL configure the background refresh intervals for cached collectors. Both SHALL accept plain integer seconds and Go duration format.
+
+#### Scenario: Default warm interval
+- **WHEN** `TENTACLE_CACHE_WARM_INTERVAL` is not set
+- **THEN** `config.CacheWarmInterval` is 10 minutes
+
+#### Scenario: Default cold interval
+- **WHEN** `TENTACLE_CACHE_COLD_INTERVAL` is not set
+- **THEN** `config.CacheColdInterval` is 30 minutes
+
+#### Scenario: Custom warm interval
+- **WHEN** `TENTACLE_CACHE_WARM_INTERVAL=5m` is set
+- **THEN** `config.CacheWarmInterval` is 5 minutes
+
+#### Scenario: Custom cold interval as integer seconds
+- **WHEN** `TENTACLE_CACHE_COLD_INTERVAL=3600` is set
+- **THEN** `config.CacheColdInterval` is 1 hour
+
 ### Requirement: Listen address
 `TENTACLE_LISTEN_ADDRESS` (default `:9594`) SHALL configure the HTTP server listen address.
 

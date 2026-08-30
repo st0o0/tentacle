@@ -10,12 +10,12 @@ import (
 
 const namespace = "audiobookshelf"
 
-func NewCollector(client *audiobookshelf.Client, timeout time.Duration, logger *slog.Logger) *collector.ServiceCollector {
+func NewCollector(client *audiobookshelf.Client, timeout time.Duration, cache collector.CacheIntervals, logger *slog.Logger) *collector.ServiceCollector {
 	return collector.NewServiceCollector(namespace, logger,
-		newSystemCollector(client, timeout, logger),
-		newLibrariesCollector(client, timeout, logger),
-		newUsersCollector(client, timeout, logger),
+		collector.NewCachedCollector(newSystemCollector(client, timeout, logger), cache.Cold, logger),
+		collector.NewCachedCollector(newLibrariesCollector(client, timeout, logger), cache.Warm, logger),
+		collector.NewCachedCollector(newUsersCollector(client, timeout, logger), cache.Warm, logger),
 		newSessionsCollector(client, timeout, logger),
-		newBackupsCollector(client, timeout, logger),
+		collector.NewCachedCollector(newBackupsCollector(client, timeout, logger), cache.Cold, logger),
 	)
 }

@@ -10,11 +10,11 @@ import (
 
 const namespace = "seerr"
 
-func NewCollector(client *seerr.Client, timeout time.Duration, logger *slog.Logger) *collector.ServiceCollector {
+func NewCollector(client *seerr.Client, timeout time.Duration, cache collector.CacheIntervals, logger *slog.Logger) *collector.ServiceCollector {
 	return collector.NewServiceCollector(namespace, logger,
-		newSystemCollector(client, timeout, logger),
-		newRequestsCollector(client, timeout, logger),
-		newUsersCollector(client, timeout, logger),
-		newIssuesCollector(client, timeout, logger),
+		collector.NewCachedCollector(newSystemCollector(client, timeout, logger), cache.Cold, logger),
+		collector.NewCachedCollector(newRequestsCollector(client, timeout, logger), cache.Warm, logger),
+		collector.NewCachedCollector(newUsersCollector(client, timeout, logger), cache.Cold, logger),
+		collector.NewCachedCollector(newIssuesCollector(client, timeout, logger), cache.Warm, logger),
 	)
 }

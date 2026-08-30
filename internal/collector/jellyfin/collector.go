@@ -4,8 +4,8 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/st0o0/tentacle/internal/collector"
 	"github.com/st0o0/tentacle/internal/client/jellyfin"
+	"github.com/st0o0/tentacle/internal/collector"
 )
 
 const namespace = "jellyfin"
@@ -22,26 +22,43 @@ func WithPlayback(enabled bool) Option {
 	}
 }
 
-func NewCollector(client *jellyfin.Client, timeout time.Duration, batchSize int, logger *slog.Logger, opts ...Option) *collector.ServiceCollector {
+func NewCollector(client *jellyfin.Client, timeout time.Duration, batchSize int, cache collector.CacheIntervals, logger *slog.Logger, opts ...Option) *collector.ServiceCollector {
 	var o options
 	for _, opt := range opts {
 		opt(&o)
 	}
 
+	// cold: library (expensive size calculation), system, plugins, devices
+	coldTimeout := 2 * time.Minute
+	library := newLibraryCollector(client, coldTimeout, batchSize, logger)
+	system := newSystemCollector(client, timeout, logger)
+	plugins := newPluginsCollector(client, timeout, logger)
+	devices := newDevicesCollector(client, timeout, logger)
+
+	// warm: users, activity, counts, playback
+	users := newUsersCollector(client, timeout, logger)
+	activity := newActivityCollector(client, timeout, logger)
+	counts := newCountsCollector(client, timeout, logger)
+
+	// live: sessions, tasks
+	sessions := newSessionsCollector(client, timeout, logger)
+	tasks := newTasksCollector(client, timeout, logger)
+
 	subs := []collector.SubCollector{
-		newSystemCollector(client, timeout, logger),
-		newUsersCollector(client, timeout, logger),
-		newSessionsCollector(client, timeout, logger),
-		newLibraryCollector(client, timeout, batchSize, logger),
-		newTasksCollector(client, timeout, logger),
-		newActivityCollector(client, timeout, logger),
-		newPluginsCollector(client, timeout, logger),
-		newDevicesCollector(client, timeout, logger),
-		newCountsCollector(client, timeout, logger),
+		collector.NewCachedCollector(system, cache.Cold, logger),
+		sessions,
+		tasks,
+		collector.NewCachedCollector(library, cache.Cold, logger),
+		collector.NewCachedCollector(users, cache.Warm, logger),
+		collector.NewCachedCollector(activity, cache.Warm, logger),
+		collector.NewCachedCollector(plugins, cache.Cold, logger),
+		collector.NewCachedCollector(devices, cache.Cold, logger),
+		collector.NewCachedCollector(counts, cache.Warm, logger),
 	}
 
 	if o.playback {
-		subs = append(subs, newPlaybackCollector(client, timeout, logger))
+		playback := newPlaybackCollector(client, timeout, logger)
+		subs = append(subs, collector.NewCachedCollector(playback, cache.Warm, logger))
 	}
 
 	return collector.NewServiceCollector(namespace, logger, subs...)

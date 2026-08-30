@@ -116,5 +116,29 @@ func TestLoad_GlobalDefaults(t *testing.T) {
 	if cfg.LogFormat != "json" {
 		t.Fatalf("LogFormat = %q, want %q", cfg.LogFormat, "json")
 	}
+	if cfg.CacheWarmInterval != 10*time.Minute {
+		t.Fatalf("CacheWarmInterval = %v, want %v", cfg.CacheWarmInterval, 10*time.Minute)
+	}
+	if cfg.CacheColdInterval != 30*time.Minute {
+		t.Fatalf("CacheColdInterval = %v, want %v", cfg.CacheColdInterval, 30*time.Minute)
+	}
+}
+
+func TestLoad_CustomCacheIntervals(t *testing.T) {
+	cfg, err := Load(envFrom(map[string]string{
+		"TENTACLE_JELLYFIN_ADDRESS":    "http://jf:8096",
+		"TENTACLE_JELLYFIN_TOKEN":      "jf-token",
+		"TENTACLE_CACHE_WARM_INTERVAL": "5m",
+		"TENTACLE_CACHE_COLD_INTERVAL": "1h",
+	}))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.CacheWarmInterval != 5*time.Minute {
+		t.Fatalf("CacheWarmInterval = %v, want %v", cfg.CacheWarmInterval, 5*time.Minute)
+	}
+	if cfg.CacheColdInterval != 1*time.Hour {
+		t.Fatalf("CacheColdInterval = %v, want %v", cfg.CacheColdInterval, 1*time.Hour)
+	}
 }
 

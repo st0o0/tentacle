@@ -32,6 +32,102 @@ type SubCollector interface {
 	Update(ch chan<- prometheus.Metric) error
 }
 
+// CachedCollector wraps a SubCollector and refreshes its metrics in the
+// background on a fixed interval. During a Prometheus scrape it serves the
+// most recently cached values instead of calling the upstream API.
+type CachedCollector struct {
+	inner    SubCollector
+	interval time.Duration
+	logger   *slog.Logger
+
+	mu      sync.RWMutex
+	cached  []prometheus.Metric
+	lastErr error
+	lastDur time.Duration
+}
+
+func NewCachedCollector(inner SubCollector, interval time.Duration, logger *slog.Logger) *CachedCollector {
+	return &CachedCollector{
+		inner:    inner,
+		interval: interval,
+		logger:   logger,
+	}
+}
+
+func (c *CachedCollector) Name() string { return c.inner.Name() }
+
+func (c *CachedCollector) Describe(ch chan<- *prometheus.Desc) {
+	c.inner.Describe(ch)
+}
+
+func (c *CachedCollector) Update(ch chan<- prometheus.Metric) error {
+	c.mu.RLock()
+	metrics := c.cached
+	err := c.lastErr
+	c.mu.RUnlock()
+
+	for _, m := range metrics {
+		ch <- m
+	}
+	return err
+}
+
+// Start runs the background refresh loop. It performs an immediate first
+// refresh, then refreshes on every tick until ctx is cancelled.
+func (c *CachedCollector) Start(ctx context.Context) {
+	c.refresh()
+
+	ticker := time.NewTicker(c.interval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			c.refresh()
+		}
+	}
+}
+
+func (c *CachedCollector) refresh() {
+	ch := make(chan prometheus.Metric, 256)
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+
+	var metrics []prometheus.Metric
+	go func() {
+		defer wg.Done()
+		for m := range ch {
+			metrics = append(metrics, m)
+		}
+	}()
+
+	start := time.Now()
+	err := c.inner.Update(ch)
+	close(ch)
+	wg.Wait()
+	dur := time.Since(start)
+
+	c.mu.Lock()
+	c.cached = metrics
+	c.lastErr = err
+	c.lastDur = dur
+	c.mu.Unlock()
+
+	if err != nil {
+		c.logger.Warn("cached collector refresh failed", "collector", c.inner.Name(), "duration", dur.Seconds(), "err", err)
+	} else {
+		c.logger.Debug("cached collector refreshed", "collector", c.inner.Name(), "duration", dur.Seconds(), "metrics", len(metrics))
+	}
+}
+
+type CacheIntervals struct {
+	Warm time.Duration
+	Cold time.Duration
+}
+
 type ScrapeDescs struct {
 	Duration *prometheus.Desc
 	Success  *prometheus.Desc
@@ -65,6 +161,16 @@ func NewServiceCollector(namespace string, logger *slog.Logger, subs ...SubColle
 		scrape:     NewScrapeDescs(namespace),
 		logger:     logger,
 		collectors: subs,
+	}
+}
+
+// StartCaches launches background refresh goroutines for all
+// CachedCollector instances among the registered sub-collectors.
+func (sc *ServiceCollector) StartCaches(ctx context.Context) {
+	for _, c := range sc.collectors {
+		if cc, ok := c.(*CachedCollector); ok {
+			go cc.Start(ctx)
+		}
 	}
 }
 

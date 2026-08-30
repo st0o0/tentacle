@@ -10,13 +10,13 @@ import (
 
 const namespace = "radarr"
 
-func NewCollector(client *arr.Client, timeout time.Duration, logger *slog.Logger) *collector.ServiceCollector {
+func NewCollector(client *arr.Client, timeout time.Duration, cache collector.CacheIntervals, logger *slog.Logger) *collector.ServiceCollector {
 	return collector.NewServiceCollector(namespace, logger,
-		newSystemCollector(client, timeout, logger),
-		newMoviesCollector(client, timeout, logger),
+		collector.NewCachedCollector(newSystemCollector(client, timeout, logger), cache.Cold, logger),
+		collector.NewCachedCollector(newMoviesCollector(client, timeout, logger), cache.Warm, logger),
 		newQueueCollector(client, timeout, logger),
-		newDiskCollector(client, timeout, logger),
-		newCalendarCollector(client, timeout, logger),
-		newExtrasCollector(client, timeout, logger),
+		collector.NewCachedCollector(newDiskCollector(client, timeout, logger), cache.Cold, logger),
+		collector.NewCachedCollector(newCalendarCollector(client, timeout, logger), cache.Warm, logger),
+		collector.NewCachedCollector(newExtrasCollector(client, timeout, logger), cache.Cold, logger),
 	)
 }

@@ -14,6 +14,7 @@ import (
 	"github.com/st0o0/tentacle/internal/client/audiobookshelf"
 	"github.com/st0o0/tentacle/internal/client/jellyfin"
 	"github.com/st0o0/tentacle/internal/client/seerr"
+	"github.com/st0o0/tentacle/internal/collector"
 	abscollector "github.com/st0o0/tentacle/internal/collector/audiobookshelf"
 	jellyfincollector "github.com/st0o0/tentacle/internal/collector/jellyfin"
 	prowlarrcollector "github.com/st0o0/tentacle/internal/collector/prowlarr"
@@ -58,6 +59,9 @@ func main() {
 
 	httpClient := &http.Client{Timeout: cfg.ScrapeTimeout}
 	reg := prometheus.NewRegistry()
+	cache := collector.CacheIntervals{Warm: cfg.CacheWarmInterval, Cold: cfg.CacheColdInterval}
+
+	var services []*collector.ServiceCollector
 
 	if cfg.Jellyfin != nil {
 		client := jellyfin.NewClient(cfg.Jellyfin.Address, cfg.Jellyfin.Token, httpClient)
@@ -79,41 +83,58 @@ func main() {
 			logger.Info("playback collector disabled (PlaybackReporting plugin not found)")
 		}
 
-		reg.MustRegister(jellyfincollector.NewCollector(client, cfg.ScrapeTimeout, cfg.JellyfinBatchSize, logger, opts...))
+		sc := jellyfincollector.NewCollector(client, cfg.ScrapeTimeout, cfg.JellyfinBatchSize, cache, logger, opts...)
+		reg.MustRegister(sc)
+		services = append(services, sc)
 		logger.Info("registered jellyfin collectors", "addr", cfg.Jellyfin.Address)
 	}
 
 	if cfg.Sonarr != nil {
 		client := arr.NewClient(cfg.Sonarr.Address, cfg.Sonarr.Token, "v3", httpClient)
-		reg.MustRegister(sonarrcollector.NewCollector(client, cfg.ScrapeTimeout, logger))
+		sc := sonarrcollector.NewCollector(client, cfg.ScrapeTimeout, cache, logger)
+		reg.MustRegister(sc)
+		services = append(services, sc)
 		logger.Info("registered sonarr collectors", "addr", cfg.Sonarr.Address)
 	}
 
 	if cfg.Radarr != nil {
 		client := arr.NewClient(cfg.Radarr.Address, cfg.Radarr.Token, "v3", httpClient)
-		reg.MustRegister(radarrcollector.NewCollector(client, cfg.ScrapeTimeout, logger))
+		sc := radarrcollector.NewCollector(client, cfg.ScrapeTimeout, cache, logger)
+		reg.MustRegister(sc)
+		services = append(services, sc)
 		logger.Info("registered radarr collectors", "addr", cfg.Radarr.Address)
 	}
 
 	if cfg.Prowlarr != nil {
 		client := arr.NewClient(cfg.Prowlarr.Address, cfg.Prowlarr.Token, "v1", httpClient)
-		reg.MustRegister(prowlarrcollector.NewCollector(client, cfg.ScrapeTimeout, logger))
+		sc := prowlarrcollector.NewCollector(client, cfg.ScrapeTimeout, cache, logger)
+		reg.MustRegister(sc)
+		services = append(services, sc)
 		logger.Info("registered prowlarr collectors", "addr", cfg.Prowlarr.Address)
 	}
 
 	if cfg.Audiobookshelf != nil {
 		client := audiobookshelf.NewClient(cfg.Audiobookshelf.Address, cfg.Audiobookshelf.Token, httpClient)
-		reg.MustRegister(abscollector.NewCollector(client, cfg.ScrapeTimeout, logger))
+		sc := abscollector.NewCollector(client, cfg.ScrapeTimeout, cache, logger)
+		reg.MustRegister(sc)
+		services = append(services, sc)
 		logger.Info("registered audiobookshelf collectors", "addr", cfg.Audiobookshelf.Address)
 	}
 
 	if cfg.Seerr != nil {
 		client := seerr.NewClient(cfg.Seerr.Address, cfg.Seerr.Token, httpClient)
-		reg.MustRegister(seerrcollector.NewCollector(client, cfg.ScrapeTimeout, logger))
+		sc := seerrcollector.NewCollector(client, cfg.ScrapeTimeout, cache, logger)
+		reg.MustRegister(sc)
+		services = append(services, sc)
 		logger.Info("registered seerr collectors", "addr", cfg.Seerr.Address)
 	}
 
-	logger.Info("starting tentacle", "version", version, "addr", cfg.ListenAddress, "scrape_timeout", cfg.ScrapeTimeout.String())
+	for _, sc := range services {
+		sc.StartCaches(ctx)
+	}
+
+	logger.Info("starting tentacle", "version", version, "addr", cfg.ListenAddress, "scrape_timeout", cfg.ScrapeTimeout.String(),
+		"cache_warm", cfg.CacheWarmInterval.String(), "cache_cold", cfg.CacheColdInterval.String())
 
 	if err := metrics.ListenAndServe(ctx, cfg.ListenAddress, reg, cfg.ScrapeTimeout, version, logger); err != nil {
 		logger.Error("server failed", "err", err)

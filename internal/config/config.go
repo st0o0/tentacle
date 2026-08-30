@@ -24,6 +24,8 @@ type Config struct {
 	ListenAddress       string
 	ScrapeTimeout       time.Duration
 	JellyfinBatchSize   int
+	CacheWarmInterval   time.Duration
+	CacheColdInterval   time.Duration
 	LogLevel            slog.Level
 	LogFormat           string
 }
@@ -41,6 +43,8 @@ func Load(getenv func(string) string) (Config, error) {
 		ListenAddress:     r.str("TENTACLE_LISTEN_ADDRESS", ":9594"),
 		ScrapeTimeout:     r.duration("TENTACLE_SCRAPE_TIMEOUT", 10*time.Second),
 		JellyfinBatchSize: r.positiveInt("TENTACLE_JELLYFIN_BATCH_SIZE", 5000),
+		CacheWarmInterval: r.duration("TENTACLE_CACHE_WARM_INTERVAL", 10*time.Minute),
+		CacheColdInterval: r.duration("TENTACLE_CACHE_COLD_INTERVAL", 30*time.Minute),
 		LogLevel:          r.logLevel("TENTACLE_LOG_LEVEL", slog.LevelInfo),
 		LogFormat:         r.logFormat("TENTACLE_LOG_FORMAT", "json"),
 	}
