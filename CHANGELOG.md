@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.6](https://github.com/st0o0/tentacle/compare/v0.1.5...v0.1.6) (2026-08-30)
+
+
+### Bug Fixes
+
+* read Sonarr stats from nested statistics object and Jellyfin size from MediaSources ([c466f73](https://github.com/st0o0/tentacle/commit/c466f73fecd40f67d7bfe60c04ea6596500dd5f2))
+
 ## [0.1.5](https://github.com/st0o0/tentacle/compare/v0.1.4...v0.1.5) (2026-08-26)
 
 
