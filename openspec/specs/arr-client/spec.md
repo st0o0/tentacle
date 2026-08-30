@@ -1,9 +1,7 @@
 ## Purpose
 
 Shared HTTP client for the Arr API (Sonarr, Radarr, Prowlarr), handling authentication, request construction, and response decoding for `/api/v3` endpoints.
-
 ## Requirements
-
 ### Requirement: Authentication
 All requests SHALL include the `X-Api-Key` header with the configured API key.
 
@@ -73,11 +71,19 @@ Non-200 responses SHALL return an error including the status code and up to 512 
 - **THEN** both values are populated as int64 byte counts
 
 ### Requirement: Sonarr Series endpoint
-`GetSeries()` SHALL call `GET /api/v3/series` and return a slice of `Series` (Title, Monitored, Status, SeasonCount, EpisodeCount, EpisodeFileCount, TotalEpisodeCount, SizeOnDisk).
+`GetSeries()` SHALL call `GET /api/v3/series` and return a slice of `Series`. The `Series` struct SHALL include a nested `Statistics` struct mapping the `statistics` JSON object, containing `SeasonCount`, `EpisodeCount`, `EpisodeFileCount`, `TotalEpisodeCount`, and `SizeOnDisk`. The top-level fields (SeasonCount, EpisodeCount, EpisodeFileCount, TotalEpisodeCount, SizeOnDisk) SHALL remain mapped for backwards compatibility.
 
 #### Scenario: Multiple series
 - **WHEN** `/api/v3/series` returns 50 series
 - **THEN** a slice of 50 `Series` structs is returned
+
+#### Scenario: Statistics sub-object populated
+- **WHEN** a series has `statistics.seasonCount=5`, `statistics.totalEpisodeCount=52`, `statistics.episodeFileCount=48`, `statistics.sizeOnDisk=123456789`
+- **THEN** `Series.Statistics.SeasonCount` is 5, `Series.Statistics.TotalEpisodeCount` is 52, `Series.Statistics.EpisodeFileCount` is 48, `Series.Statistics.SizeOnDisk` is 123456789
+
+#### Scenario: Top-level fields zero with statistics populated
+- **WHEN** a series has top-level `sizeOnDisk=0` but `statistics.sizeOnDisk=123456789`
+- **THEN** `Series.SizeOnDisk` is 0 and `Series.Statistics.SizeOnDisk` is 123456789
 
 ### Requirement: Sonarr Wanted Missing endpoint
 `GetWantedMissing()` SHALL call `GET /api/v3/wanted/missing` with `page=1&pageSize=1` and return `WantedResponse` (TotalRecords).
@@ -167,3 +173,4 @@ Non-200 responses SHALL return an error including the status code and up to 512 
 #### Scenario: All indexers healthy
 - **WHEN** `/api/v3/indexerstatus` returns an empty array
 - **THEN** no indexers are disabled
+

@@ -74,6 +74,7 @@ type Item struct {
 }
 
 type MediaSource struct {
+	Size         int64         `json:"Size"`
 	Container    string        `json:"Container"`
 	MediaStreams  []MediaStream `json:"MediaStreams"`
 }

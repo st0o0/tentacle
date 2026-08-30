@@ -104,10 +104,26 @@ func (c *seriesCollector) Update(ch chan<- prometheus.Metric) error {
 		if s.Monitored {
 			monitoredCount++
 		}
-		totalEpisodes += s.TotalEpisodeCount
-		downloadedEpisodes += s.EpisodeFileCount
-		totalSeasons += s.SeasonCount
-		sizeOnDisk += s.SizeOnDisk
+		if s.Statistics.TotalEpisodeCount != 0 {
+			totalEpisodes += s.Statistics.TotalEpisodeCount
+		} else {
+			totalEpisodes += s.TotalEpisodeCount
+		}
+		if s.Statistics.EpisodeFileCount != 0 {
+			downloadedEpisodes += s.Statistics.EpisodeFileCount
+		} else {
+			downloadedEpisodes += s.EpisodeFileCount
+		}
+		if s.Statistics.SeasonCount != 0 {
+			totalSeasons += s.Statistics.SeasonCount
+		} else {
+			totalSeasons += s.SeasonCount
+		}
+		if s.Statistics.SizeOnDisk != 0 {
+			sizeOnDisk += s.Statistics.SizeOnDisk
+		} else {
+			sizeOnDisk += s.SizeOnDisk
+		}
 		if s.Status != "" {
 			statusCounts[s.Status]++
 		}

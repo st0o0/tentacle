@@ -103,12 +103,14 @@ func (c *libraryCollector) librarySize(ctx context.Context, parentID string) (in
 	startIndex := 0
 
 	for {
-		resp, err := c.client.GetItems(ctx, parentID, "", "Size", c.batchSize, startIndex)
+		resp, err := c.client.GetItems(ctx, parentID, "Movie,Episode,Audio,MusicVideo,Book", "MediaSources", c.batchSize, startIndex)
 		if err != nil {
 			return 0, err
 		}
 		for _, item := range resp.Items {
-			total += item.Size
+			for _, ms := range item.MediaSources {
+				total += ms.Size
+			}
 		}
 		startIndex += len(resp.Items)
 		if startIndex >= resp.TotalRecordCount || len(resp.Items) == 0 {
