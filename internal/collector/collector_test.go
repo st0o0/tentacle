@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"math"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -14,7 +16,7 @@ import (
 type stubSub struct {
 	name    string
 	desc    *prometheus.Desc
-	value   float64
+	value   atomic.Uint64
 	failing bool
 }
 
@@ -28,17 +30,18 @@ func (s *stubSub) Update(ch chan<- prometheus.Metric) error {
 	if s.failing {
 		return fmt.Errorf("stub error")
 	}
-	ch <- prometheus.MustNewConstMetric(s.desc, prometheus.GaugeValue, s.value)
+	ch <- prometheus.MustNewConstMetric(s.desc, prometheus.GaugeValue, math.Float64frombits(s.value.Load()))
 	return nil
 }
 
 func newStub(name string, value float64, failing bool) *stubSub {
-	return &stubSub{
+	s := &stubSub{
 		name:    name,
 		desc:    prometheus.NewDesc("test_"+name+"_value", "stub", nil, nil),
-		value:   value,
 		failing: failing,
 	}
+	s.value.Store(math.Float64bits(value))
+	return s
 }
 
 func gather(t *testing.T, c prometheus.Collector) map[string]*dto.MetricFamily {
@@ -200,7 +203,7 @@ func TestCachedCollector_UpdatesOnTick(t *testing.T) {
 
 	time.Sleep(30 * time.Millisecond)
 
-	stub.value = 20
+	stub.value.Store(math.Float64bits(20))
 	time.Sleep(80 * time.Millisecond)
 
 	sc := NewServiceCollector("test", slog.Default(), cc)
