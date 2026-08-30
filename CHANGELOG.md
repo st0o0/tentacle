@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.1.7](https://github.com/st0o0/tentacle/compare/v0.1.6...v0.1.7) (2026-08-30)
+
+
+### Features
+
+* add tiered background caching for collectors to prevent scrape timeouts ([c0423d8](https://github.com/st0o0/tentacle/commit/c0423d8b82ca934bee2373144357e2e6e480959e))
+
+
+### Bug Fixes
+
+* use atomic access for stubSub.value to eliminate data race in test ([865b707](https://github.com/st0o0/tentacle/commit/865b70772bb1982a927dbe8859de1f106a0b177d))
+
 ## [0.1.6](https://github.com/st0o0/tentacle/compare/v0.1.5...v0.1.6) (2026-08-30)
 
 
